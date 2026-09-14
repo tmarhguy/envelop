@@ -12,9 +12,8 @@ public partial class MainWindow:Window {
  readonly CloudApi api=new(); readonly DispatcherTimer timer=new(){Interval=TimeSpan.FromSeconds(3)};
  string? conversation; Person? selected; bool polling; int generation;
  (string chat,string text,Guid nonce)? pending;
-  public MainWindow(){InitializeComponent();ProjectUrl.Text=api.Url;Loaded+=Start;timer.Tick+=async(_,_)=>await Poll();Closed+=(_,_)=>timer.Stop();}
+  public MainWindow(){InitializeComponent();Loaded+=Start;timer.Tick+=async(_,_)=>await Poll();Closed+=(_,_)=>timer.Stop();}
  async void Start(object sender,RoutedEventArgs e){if(api.Configured){Setup.Visibility=Visibility.Collapsed;Onboarding.Visibility=Visibility.Visible;try{if(await api.Restore()!=null)await Ready();}catch(Exception ex){ErrorText.Text=ex.Message;}}}
- void Configure(object sender,RoutedEventArgs e){try{api.Configure(ProjectUrl.Text,ProjectKey.Text);Setup.Visibility=Visibility.Collapsed;Onboarding.Visibility=Visibility.Visible;ErrorText.Text="";}catch(Exception ex){ErrorText.Text=ex.Message;}}
   async void Enter(object sender,RoutedEventArgs e){EnterButton.IsEnabled=false;try{if(string.IsNullOrWhiteSpace(DisplayName.Text))throw new Exception("Enter your name.");await api.Rpc("create_profile",new{p_name=DisplayName.Text.Trim(),p_avatar=DefaultAvatar(DisplayName.Text.Trim())});await Ready();}catch(Exception ex){ErrorText.Text=ex.Message;}finally{EnterButton.IsEnabled=true;}}
  async Task Ready(){Onboarding.Visibility=Visibility.Collapsed;Messenger.Visibility=Visibility.Visible;ErrorText.Text="";People.ItemsSource=await api.People("");timer.Start();await Poll();}
  async void FindPeople(object sender,RoutedEventArgs e){try{People.ItemsSource=await api.People(Search.Text);}catch(Exception ex){ErrorText.Text=ex.Message;}}
