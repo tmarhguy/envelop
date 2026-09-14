@@ -1,1 +1,39 @@
-{"version":"0.2.0","platforms":[{"id":"mac","note":"v0.2.0 · direct download","file":"downloads/envelop-mac-0.2.0.zip","label":"Download for Mac"},{"id":"ios","note":"Source build · Xcode or AltStore"},{"id":"ipad","note":"Same Apple app · Xcode or AltStore"},{"id":"android","note":"APK sideload · coming from the next Android build"},{"id":"windows","note":"Direct download · coming from the next Windows build"},{"id":"tomato","note":"Custom assembly firmware · integration in progress"}]}
+{
+  "version": "0.2.0",
+  "platforms": [
+    {
+      "id": "mac",
+      "note": "v0.2.0 · direct download",
+      "file": "downloads/envelop-mac-0.2.0.zip",
+      "label": "Download for Mac"
+    },
+    {
+      "id": "ios",
+      "note": "Source zip · AltStore or Xcode · IPA when signed",
+      "file": "downloads/envelop-apple-source.zip",
+      "label": "Download Apple source"
+    },
+    {
+      "id": "ipad",
+      "note": "Same Apple app · AltStore or Xcode",
+      "file": "downloads/envelop-apple-source.zip",
+      "label": "Download Apple source"
+    },
+    {
+      "id": "android",
+      "note": "v0.2.0 · APK sideload",
+      "file": "downloads/envelop-android-0.2.0.apk",
+      "label": "Download for Android"
+    },
+    {
+      "id": "windows",
+      "note": "v0.2.0 · self-contained zip",
+      "file": "downloads/envelop-windows-0.2.0.zip",
+      "label": "Download for Windows"
+    },
+    {
+      "id": "tomato",
+      "note": "Binary protocol firmware in progress"
+    }
+  ]
+}
