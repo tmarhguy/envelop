@@ -1,0 +1,38 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Apple / Swift
+apple/.build/
+apple/.swiftpm/
+apple/Envelop.app/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+*.apk
+*.aab
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+
+# Editors / notes
+.cursor/
+log/.obsidian/
+*.swp
+*~
+
+# Windows
+bin/
+obj/
+*.user
+*.suo
