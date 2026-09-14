@@ -28,7 +28,7 @@ function fillHero(id) {
  const card=id&&document.querySelector(`[data-platform="${CSS.escape(id)}"]`);
  if(!card){
   name.textContent='Pick your device below';
-  note.textContent='This device was not recognized. All downloads are in the row.';
+  note.textContent='All downloads are in the row under this card.';
   link.href='#platforms';
   return;
  }
@@ -50,7 +50,7 @@ function boot(releases) {
   card.querySelector('.availability').textContent=item.note;
   const link=card.querySelector('.download');
   // Only same-origin packaged artifacts, never arbitrary manifest URLs.
-  if(item.file && /^downloads\/[a-z0-9._-]+\.(zip|apk)$/.test(item.file)){
+  if(item.file && /^downloads\/[a-z0-9._-]+\.(zip|apk|ipa)$/.test(item.file)){
    link.href=item.file;link.setAttribute('download','');link.classList.add('ready');
    link.replaceChildren(document.createTextNode(item.label));
   }
@@ -68,5 +68,13 @@ function bootFailed() {
 if(typeof window!=='undefined'){
  window.addEventListener('hashchange',revealHash);revealHash();
  fetch('releases.json').then(response=>{if(!response.ok)throw new Error('release manifest unavailable');return response.json();}).then(boot).catch(bootFailed);
+ // Autoplay Tomato OS demo; pause if the user prefers reduced motion.
+ const demo=document.querySelector('.origin-demo video');
+ if(demo){
+  const reduce=window.matchMedia('(prefers-reduced-motion: reduce)');
+  const sync=()=>{ if(reduce.matches){ demo.pause(); demo.removeAttribute('autoplay'); } else { demo.play().catch(()=>{}); } };
+  sync();
+  if(typeof reduce.addEventListener==='function') reduce.addEventListener('change',sync);
+ }
 }
 if(typeof module!=='undefined')module.exports={detectPlatform};
