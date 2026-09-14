@@ -29,7 +29,12 @@ class CloudApi(context: Context) {
     private var expires = 0L
     val userId: String get() = token?.getJSONObject("user")?.getString("id") ?: ""
     val configured: Boolean get() = url.isNotBlank() && key.isNotBlank()
-    init { prefs.getString("session", null)?.let { runCatching { token = JSONObject(unseal(it)) } } }
+    init {
+        if (!configured && BuildConfig.ENVELOP_URL.isNotBlank() && BuildConfig.ENVELOP_KEY.isNotBlank()) {
+            runCatching { configure(BuildConfig.ENVELOP_URL, BuildConfig.ENVELOP_KEY) }
+        }
+        prefs.getString("session", null)?.let { runCatching { token = JSONObject(unseal(it)) } }
+    }
     fun configure(project: String, publicKey: String) {
         val parsed = URI(project.trim())
         require(parsed.scheme == "https" && !parsed.host.isNullOrBlank() && parsed.userInfo == null && parsed.query == null && parsed.fragment == null) { "Use your project's HTTPS URL." }
