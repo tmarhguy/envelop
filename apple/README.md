@@ -54,3 +54,7 @@ open Envelop.app   # allow Bluetooth when macOS asks
 
 Icon: red circle + white paper plane (`EnvelopAvatar`). Export a real
 `AppIcon` from `assets/icon/envelop.svg` when it lands.
+
+## Composer
+
+Desktop: **Enter** sends; **Shift+Enter** inserts a newline. iPhone/iPad keep a visible **Send** button; the soft keyboard uses the Send action.
