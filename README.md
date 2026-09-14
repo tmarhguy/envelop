@@ -18,17 +18,17 @@ This README is the map. [SPEC.md](SPEC.md) is the architecture. [docs/integratio
 <table align="center">
   <tr>
     <td align="center" width="50%"><img src="media/screenshots/website-hero.png" alt="Envelop marketing site hero with Tomato postcard" /></td>
-    <td align="center" width="50%"><img src="media/screenshots/website-downloads.png" alt="Envelop early-access downloads by platform" /></td>
+    <td align="center" width="50%"><img src="media/screenshots/website-downloads.png" alt="Envelop downloads by platform" /></td>
   </tr>
   <tr>
     <td align="center"><em>Hero postcard: Tomato is a verified contact on the same network.</em></td>
-    <td align="center"><em>Early-access downloads — Mac ships first; other clients follow.</em></td>
+    <td align="center"><em>Downloads by platform — Mac first; other clients as they ship.</em></td>
   </tr>
 </table>
 
 ## Why
 
-Tomato already boots an OS and talks over nRF8001 UART. It cannot hold a cloud session on its own. Envelop is the thin Internet layer: anonymous Supabase identities for humans, durable DMs, and a leased bridge so one nearby phone or Mac can forward queue traffic until the lease expires or disconnects.
+Tomato already boots an OS and talks over nRF8001 UART. The messenger is **Envelop** — named for envelopes that carried messages across distance, local BLE text to a phone first, first line for home. The same name now covers the Internet layer: anonymous identities for humans, durable DMs, Tomato pinned and verified at the top, and a leased bridge so one nearby client can forward queue traffic until the lease expires or disconnects.
 
 ## What works / still open
 
@@ -39,7 +39,7 @@ Tomato already boots an OS and talks over nRF8001 UART. It cannot hold a cloud s
 | ENVELOP/1 Swift + portable C codecs + shared vectors | Working |
 | Apple BLE bridge handshake / queue forward / ACK | Implemented; needs matching Tomato firmware |
 | Android Compose + Windows WPF cloud clients | Working (no BLE bridge yet) |
-| Marketing site + Mac early-access zip | Working |
+| Marketing site + Mac zip | Working |
 | Physical Tomato firmware UI, Realtime, history paging | Outstanding |
 | Acceptance A–E on live hardware | Outstanding |
 
@@ -86,7 +86,7 @@ windows/Envelop/        .NET 8 WPF client
 backend/migrations/     001_envelop.sql
 protocol/               ENVELOP/1 + BLE contracts + vectors
 tomato/protocol/        portable C codec for firmware bring-up
-website/                early-access site
+website/                install / download site
 media/screenshots/      README plates
 ```
 
