@@ -314,7 +314,7 @@ final class CloudSession: ObservableObject {
         _ = try await refreshTask!.value
     }
     private func request<T: Decodable>(_ path: String, body: [String: Any]? = nil, authenticated: Bool = true) async throws -> T {
-        guard let base, let url = URL(string: path, relativeTo: base.appendingPathComponent("/")) else { throw CloudError.message("Configure a Supabase HTTPS URL and public key.") }
+        guard let base, let url = URL(string: path, relativeTo: base.appendingPathComponent("/")) else { throw CloudError.message("This build isn’t connected to the Envelop network.") }
         if authenticated && expires < Date().addingTimeInterval(60) { try await refresh() }
         var request = URLRequest(url: url); request.timeoutInterval = 20
         request.setValue(key, forHTTPHeaderField: "apikey")
