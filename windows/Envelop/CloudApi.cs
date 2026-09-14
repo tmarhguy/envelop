@@ -19,6 +19,8 @@ public sealed class CloudApi {
   if(File.Exists(Path.Combine(folder,"config.json"))) {
    var config=JsonDocument.Parse(File.ReadAllText(Path.Combine(folder,"config.json"))).RootElement;
    Url=config.GetProperty("url").GetString()!;key=config.GetProperty("key").GetString()!;
+  } else if(NetworkDefaults.Url.Length>0 && NetworkDefaults.Key.Length>0) {
+   try { Configure(NetworkDefaults.Url, NetworkDefaults.Key); } catch { /* bad bake */ }
   }
   if(File.Exists(Path.Combine(folder,"session.bin"))) {
    try { token=JsonDocument.Parse(ProtectedData.Unprotect(File.ReadAllBytes(Path.Combine(folder,"session.bin")),Encoding.UTF8.GetBytes(Url),DataProtectionScope.CurrentUser)).RootElement.Clone(); }
@@ -26,8 +28,8 @@ public sealed class CloudApi {
   }
  }
  public void Configure(string url,string publicKey) {
-  if(!Uri.TryCreate(url.Trim(),UriKind.Absolute,out var uri) || uri.Scheme!="https" || uri.UserInfo!="" || uri.Query!="" || uri.Fragment!="") throw new Exception("Use your Supabase project's HTTPS URL.");
-  if(string.IsNullOrWhiteSpace(publicKey))throw new Exception("Enter the public project key.");
+  if(!Uri.TryCreate(url.Trim(),UriKind.Absolute,out var uri) || uri.Scheme!="https" || uri.UserInfo!="" || uri.Query!="" || uri.Fragment!="") throw new Exception("Use an https:// network URL.");
+  if(string.IsNullOrWhiteSpace(publicKey))throw new Exception("Missing network key.");
   var next=url.Trim().TrimEnd('/');
   if(next!=Url) {token=null;expires=DateTimeOffset.MinValue;File.Delete(Path.Combine(folder,"session.bin"));}
   Url=next;key=publicKey.Trim();File.WriteAllText(Path.Combine(folder,"config.json"),JsonSerializer.Serialize(new{url=Url,key}));
