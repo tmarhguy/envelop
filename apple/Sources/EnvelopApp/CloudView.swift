@@ -8,7 +8,7 @@ struct CloudView: View {
     var body: some View {
         Group {
             if !session.configured {
-                ContentUnavailableView("Connect Envelop to Supabase", systemImage: "network", description: Text("Set ENVELOP_SUPABASE_URL and ENVELOP_SUPABASE_KEY, then relaunch. See backend/README.md for setup."))
+                ContentUnavailableView("Envelop isn’t connected", systemImage: "network", description: Text("This build has no network baked in. Use a download from the Envelop site, or ask whoever runs the test network."))
             } else if session.profile == nil {
                 VStack(spacing: 18) {
                     EnvelopAvatar()
