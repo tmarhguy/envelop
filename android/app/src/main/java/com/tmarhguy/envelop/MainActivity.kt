@@ -41,7 +41,6 @@ class MainActivity: ComponentActivity() {
 @Composable fun EnvelopScreen(api: CloudApi) {
  val scope=rememberCoroutineScope()
  var configured by remember { mutableStateOf(api.configured) }
- var url by remember { mutableStateOf(api.url) }; var key by remember { mutableStateOf("") }
  var profile by remember { mutableStateOf<JSONObject?>(null) }
  var name by remember { mutableStateOf("") }
  var people by remember { mutableStateOf(listOf<JSONObject>()) }
@@ -62,13 +61,10 @@ class MainActivity: ComponentActivity() {
  Column(Modifier.fillMaxSize().systemBarsPadding().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
   Text("Envelop",style=MaterialTheme.typography.headlineLarge)
   if(!configured) {
-   Text("Connect to your Envelop network")
-   OutlinedTextField(url,{url=it},label={Text("Supabase project URL")},singleLine=true,modifier=Modifier.fillMaxWidth())
-   OutlinedTextField(key,{key=it},label={Text("Public project key")},modifier=Modifier.fillMaxWidth())
-   Button(onClick={runCatching{api.configure(url,key);configured=true}.onFailure{error=it.message ?: "Invalid configuration"}}){Text("Connect")}
+   Text("This build isn’t connected to the Envelop test network. Get a download from the Envelop site.")
   } else if(profile==null) {
    Text("Welcome. Choose your name.")
-   OutlinedTextField(name,{name=it},label={Text("Your name")},singleLine=true)
+   OutlinedTextField(name,{name=it},label={Text("Your name")},singleLine=true,modifier=Modifier.fillMaxWidth())
    Button(enabled=!busy && name.trim().length in 1..32,onClick={busy=true;scope.launch{runCatching{api.enter(name.trim(),defaultAvatar(name.trim()))}.onSuccess{profile=it;error=""}.onFailure{error=it.message ?: "Sign-in failed"};busy=false}}){Text("Enter Envelop")}
   } else if(selected==null) {
    OutlinedTextField(query,{query=it},label={Text("Find people")},modifier=Modifier.fillMaxWidth())
