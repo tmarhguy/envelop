@@ -17,9 +17,13 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1.0</string>
+	<string>0.2.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>EnvelopSupabaseKey</key>
+	<string>sb_publishable_nhog8psQAljHGK3RvIyp-Q_26yCYmsF</string>
+	<key>EnvelopSupabaseURL</key>
+	<string>https://sevnusobochafwuvmuvu.supabase.co</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
