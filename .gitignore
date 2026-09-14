@@ -17,6 +17,9 @@ xcuserdata/
 local.properties
 *.apk
 *.aab
+!website/downloads/*.apk
+!website/downloads/*.zip
+!website/downloads/*.ipa
 
 # Node
 node_modules/
@@ -37,3 +40,5 @@ obj/
 *.user
 *.suo
 .vscode/
+windows/.publish/
+apple/.build/
