@@ -6,6 +6,7 @@ await db.exec(`create role anon; create role authenticated; create schema auth;
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
 grant usage on schema public,auth to authenticated,anon; grant execute on function auth.uid() to authenticated,anon;`);
 await db.exec(await readFile(new URL('./migrations/001_envelop.sql',import.meta.url),'utf8'));
+await db.exec(await readFile(new URL('./migrations/002_profile_name.sql',import.meta.url),'utf8'));
 const ids = {alice:'10000000-0000-0000-0000-000000000001',bob:'20000000-0000-0000-0000-000000000002',eve:'30000000-0000-0000-0000-000000000003',tomato:'00000000-0000-0000-0000-000000000001'};
 let passed=0;
 async function test(name, fn) { await fn(); passed++; console.log(`PASS ${name}`); }
@@ -17,6 +18,16 @@ async function rpc(name,args=[]) {
  return (await db.query(`select * from public.${name}(${args.map((_,i)=>'$'+(i+1)).join(',')})`,args)).rows;
 }
 for(const name of ['alice','bob','eve']) await as(name,()=>rpc('create_profile',[name,2]));
+await test('name edit preserves identity and cannot edit another profile',async()=>{
+ const before=(await as('alice',()=>rpc('create_profile',['alice',2])))[0];
+ const after=(await as('alice',()=>rpc('update_profile_name',['Alice Updated'])))[0];
+ assert.equal(after.id,before.id); assert.equal(after.handle,before.handle);
+ assert.equal(after.is_device,false); assert.equal(after.verified,false);
+ assert.equal(after.display_name,'Alice Updated');
+ assert.equal((await as('bob',()=>rpc('create_profile',['bob',2])))[0].display_name,'bob');
+ await as('alice',()=>assert.rejects(rpc('update_profile_name',[' ']),/Name must/));
+ await as('alice',()=>assert.rejects(rpc('update_profile_name',['x'.repeat(33)]),/Name must/));
+});
 let dm,tdm,message;
 const nonce='40000000-0000-0000-0000-000000000004', instance='50000000-0000-0000-0000-000000000005', other='60000000-0000-0000-0000-000000000006';
 await test('canonical DM is the same for both participants',async()=>{
