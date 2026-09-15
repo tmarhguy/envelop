@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Envelop web chat: talk to whoever is online, and send a hello that a dorm-built computer answers.">
+<meta name="theme-color" content="#f7f5ef">
+<title>Chat — Envelop</title>
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="chat.css">
+<script src="chat.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#chat">Skip to chat</a>
+<header class="wrap">
+  <a class="brand" href="../" aria-label="Envelop home">
+    <img src="../favicon.svg" width="34" height="34" alt="">
+    <span class="brand-name">Envelop</span>
+  </a>
+  <nav aria-label="Main navigation">
+    <a href="../#origin">Origin</a>
+    <a href="../#how">How it works</a>
+    <a href="./" aria-current="page">Chat</a>
+  </nav>
+</header>
+
+<main class="wrap chat-main" id="chat">
+  <div class="chat-card">
+    <div class="chat-welcome" id="chat-welcome" hidden>
+      <p class="eyebrow"><span class="dot"></span> PEOPLE AND ONE DORM COMPUTER</p>
+      <h1>Chat in your browser.</h1>
+      <p>Enter a name and you're visible while you're here. Text whoever is online, and send Tomato a hello whenever its bridge is up — a real computer answers from its screen. Leave, and your chats are gone for good.</p>
+      <div class="chat-row">
+        <input id="chat-name" type="text" maxlength="32" placeholder="Your name" autocomplete="nickname" aria-label="Your name">
+        <button id="chat-join" type="button">Enter</button>
+      </div>
+    </div>
+    <div class="chat-grid" id="chat-grid" hidden>
+      <aside class="chat-side" aria-label="Conversations">
+        <div class="chat-me" id="chat-me"></div>
+        <input class="chat-search" id="chat-search" type="search" placeholder="Find people" aria-label="Find people">
+        <ul class="chat-people" id="chat-people"></ul>
+        <div class="chat-admin" id="chat-admin" hidden></div>
+        <button class="chat-forget" id="chat-forget" type="button">Forget this identity</button>
+        <button class="chat-forget danger" id="chat-leave" type="button">Leave Envelop</button>
+      </aside>
+      <section class="chat-thread" aria-label="Conversation">
+        <div class="chat-empty" id="chat-empty">
+          <strong>Choose a conversation.</strong>
+          Message a person — or send a note to Tomato.
+        </div>
+        <div id="chat-convo" hidden>
+          <div class="chat-peer" id="chat-peer"></div>
+          <div class="chat-notice" id="chat-notice" hidden></div>
+          <div class="chat-messages" id="chat-messages" aria-live="polite"></div>
+          <div class="chat-composer">
+            <input id="chat-draft" type="text" maxlength="256" placeholder="Message" aria-label="Message" autocomplete="off">
+            <button class="chat-send" id="chat-send" type="button">Send</button>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="chat-error" id="chat-error" hidden></div>
+  </div>
+  <noscript><p>Web chat needs JavaScript. The story behind it is on the <a href="../">main page</a>.</p></noscript>
+</main>
+
+<footer class="wrap">
+  <a class="brand" href="../"><img src="../favicon.svg" width="26" height="26" alt=""><span class="brand-name">Envelop</span></a>
+  <p class="disclaimer">Not a commercial product — an exploration of a stack around Tomato, a computer built to learn and to love.</p>
+  <a href="https://github.com/tmarhguy/envelop">Source on GitHub</a>
+</footer>
+</body>
+</html>

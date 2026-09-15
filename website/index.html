@@ -9,9 +9,10 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 <script src="app.js" defer></script>
+<script src="hello.js" defer></script>
 </head>
 <body>
-<a class="skip" href="#downloads">Skip to downloads</a>
+<a class="skip" href="#chat">Skip to chat</a>
 <header class="wrap">
   <a class="brand" href="./" aria-label="Envelop home">
     <img src="favicon.svg" width="34" height="34" alt="">
@@ -20,28 +21,33 @@
   <nav aria-label="Main navigation">
     <a href="#origin">Origin</a>
     <a href="#how">How it works</a>
-    <a href="#downloads">Get it</a>
+    <a href="chat/index.html">Chat</a>
   </nav>
 </header>
 
 <main>
 <section class="hero wrap" aria-labelledby="title">
   <div class="hero-copy">
-    <p class="eyebrow"><span class="dot"></span> SMALL APP. LONG-DISTANCE MESSAGES.</p>
+    <p class="eyebrow"><span class="dot"></span> A CHAT ROOM WITH PEOPLE — AND A COMPUTER</p>
     <h1 id="title">A little closer,<br>on every screen.</h1>
-    <p class="intro">You text people over the Internet — and you text <a class="inline-link" href="https://tomato.tmarhguy.com">Tomato</a>, a 32-bit computer built from scratch in a dorm. Same chat list. Tomato is the machine on the other end.</p>
+    <p class="intro">Pick a name and say hello to <a class="inline-link" href="https://tomato.tmarhguy.com">Tomato</a> — a computer in a dorm room that answers.</p>
     <div class="hero-actions">
-      <a class="jump" href="#downloads">Find your download</a>
+      <a class="jump solid" href="chat/index.html">Open web chat</a>
       <a class="jump quiet" href="#origin">Why it exists</a>
     </div>
+    <form class="hello-form" id="hello-form">
+      <input id="hello-text" type="text" maxlength="256" placeholder="Say hello to Tomato…" aria-label="Say hello to Tomato" autocomplete="off">
+      <button type="submit" id="hello-send">Send</button>
+    </form>
+    <p class="hello-status" id="hello-status" aria-live="polite" hidden></p>
   </div>
   <div class="postcard" aria-label="Illustration of an exchange with Tomato">
     <div class="postcard-top">
       <span class="peer"><span class="dot"></span> Tomato <img class="verified" src="media/verified.svg" width="16" height="16" alt="" title="Verified · this is Tomato"></span>
       <span class="stamp" aria-hidden="true">P<br>01</span>
     </div>
-    <div class="bubble outgoing">Hello from the other side.</div>
-    <div class="bubble incoming">A little closer now.</div>
+    <div class="bubble outgoing">Hello, Tomato.</div>
+    <div class="bubble incoming">Hello from the dorm.</div>
     <div class="postcard-foot">
       <span>YOU ↔ TOMATO</span>
       <svg width="56" height="34" viewBox="0 0 56 34" fill="none" aria-hidden="true"><path d="M2 24c15-28 29 11 43-16M35 8l11-3-2 12" stroke="currentColor" stroke-width="1.5"/></svg>
@@ -73,7 +79,10 @@
     </figure>
     <div class="origin-copy">
       <p>Tomato is a 32-bit computer built from scratch in a dorm — chips, boards, its own OS. The first goal was simple: paint a screen, then text a phone. That messenger is <strong>Envelop</strong> — named for the envelopes that carried word across distance — and its first line was for home: <em>Hello, Hello Ghanafo!</em></p>
-      <p>In the app, <strong>you ↔ Tomato</strong> is a real conversation: you send from your phone or computer; Tomato is the hardware contact with the blue check. When a nearby Envelop bridge is online, your message lands on Tomato’s screen.</p>
+      <p>In the chat, <strong>you ↔ Tomato</strong> is a real conversation: you send from your browser; Tomato is the hardware contact with the blue check. When the bridge is online, your message lands on Tomato’s screen. Don't take our word for it: send Tomato an envelop now, and a computer in a dorm room answers.</p>
+      <p class="origin-links">
+        <a class="jump solid" href="chat/index.html">Say hello to Tomato</a>
+      </p>
       <p class="origin-links">
         <a class="text-link" href="https://tomato.tmarhguy.com">Tomato paper</a>
         <a class="text-link" href="https://github.com/tmarhguy/tomato">Tomato on GitHub</a>
@@ -83,69 +92,26 @@
   </div>
 </section>
 
-<section class="downloads wrap" id="downloads" aria-labelledby="download-title">
+<section class="downloads wrap" id="chat" aria-labelledby="chat-title">
   <div class="section-head">
     <div>
-      <p class="eyebrow">01 / CHOOSE YOUR DEVICE</p>
-      <h2 id="download-title">Make yourself at home.</h2>
+      <p class="eyebrow">01 / START HERE</p>
+      <h2 id="chat-title">Say hello to a computer.</h2>
     </div>
-    <p>One Envelop network.<br>No phone number or password.</p>
+    <p>It sits in a dorm room,<br>and this page reaches it.</p>
   </div>
 
   <div class="for-you" id="for-you" aria-live="polite">
     <div class="for-you-main">
-      <p class="eyebrow">FOR THIS DEVICE</p>
-      <h3 id="for-you-name">Finding your download…</h3>
-      <p id="for-you-note">Checking this device.</p>
+      <p class="eyebrow">THE CHAT</p>
+      <h3 id="for-you-name">Envelop web chat</h3>
+      <p id="for-you-note">Pick a name and send Tomato a hello — it answers from its own screen.</p>
     </div>
-    <a class="download" id="for-you-link" href="#platforms">See options</a>
+    <a class="download ready" id="for-you-link" href="chat/index.html">Open web chat</a>
   </div>
-
-  <p class="eyebrow row-label">ALL DOWNLOADS</p>
-  <p class="release-note" id="release-note">Pick a platform. Requirements and install steps live with each build.</p>
 
   <div class="platform-scroller">
     <div class="platform-grid" id="platforms">
-      <article class="platform" data-platform="mac">
-        <div class="platform-top"><span class="device-icon" aria-hidden="true">⌘</span><span class="platform-label">DESKTOP</span></div>
-        <h3>Mac</h3>
-        <p>For your desk, and everywhere else.</p>
-        <div class="requirements">macOS 14+ · Apple silicon</div>
-        <a class="download" href="#install-mac">Installation details</a>
-        <span class="availability">Checking build availability…</span>
-      </article>
-      <article class="platform" data-platform="ios">
-        <div class="platform-top"><span class="device-icon phone" aria-hidden="true"></span><span class="platform-label">MOBILE</span></div>
-        <h3>iPhone</h3>
-        <p>Your conversations, in your pocket.</p>
-        <div class="requirements">iOS 17+ · Xcode or AltStore</div>
-        <a class="download" href="#install-ios">Installation details</a>
-        <span class="availability">Source installation</span>
-      </article>
-      <article class="platform" data-platform="ipad">
-        <div class="platform-top"><span class="device-icon tablet" aria-hidden="true"></span><span class="platform-label">TABLET</span></div>
-        <h3>iPad</h3>
-        <p>A little more room to catch up.</p>
-        <div class="requirements">iPadOS 17+ · Xcode or AltStore</div>
-        <a class="download" href="#install-ios">Installation details</a>
-        <span class="availability">Source installation</span>
-      </article>
-      <article class="platform" data-platform="android">
-        <div class="platform-top"><span class="device-icon" aria-hidden="true">✳</span><span class="platform-label">MOBILE</span></div>
-        <h3>Android</h3>
-        <p>A small app. A familiar place.</p>
-        <div class="requirements">Android 8+ · Phone or tablet</div>
-        <a class="download" href="#install-android">Installation details</a>
-        <span class="availability">Checking build availability…</span>
-      </article>
-      <article class="platform" data-platform="windows">
-        <div class="platform-top"><span class="device-icon windows" aria-hidden="true">⊞</span><span class="platform-label">DESKTOP</span></div>
-        <h3>Windows</h3>
-        <p>Keep the conversation beside your work.</p>
-        <div class="requirements">Windows 10 2004+ · x64</div>
-        <a class="download" href="#install-windows">Installation details</a>
-        <span class="availability">Checking build availability…</span>
-      </article>
       <article class="platform tomato-card" data-platform="tomato">
         <div class="platform-top"><span class="tomato-mark" aria-hidden="true">●</span><span class="platform-label">THE ORIGINAL</span></div>
         <h3>Tomato <img class="verified" src="media/verified.svg" width="17" height="17" alt="" title="Verified · this is Tomato"></h3>
@@ -155,9 +121,17 @@
         <a class="text-link" href="https://github.com/tmarhguy/tomato">Tomato source</a>
         <span class="availability">Firmware integration</span>
       </article>
+      <article class="platform" data-platform="bridge">
+        <div class="platform-top"><span class="device-icon" aria-hidden="true">⌘</span><span class="platform-label">OPERATOR</span></div>
+        <h3>The bridge</h3>
+        <p>One Mac near Tomato holds the Bluetooth lease so web notes reach its screen.</p>
+        <div class="requirements">Not a download · runs where Tomato lives</div>
+        <a class="download" href="#how">How it works</a>
+        <span class="availability">Lease-held forwarding</span>
+      </article>
     </div>
   </div>
-  <noscript><p>JavaScript is off. Use the installation instructions below.</p></noscript>
+  <noscript><p>JavaScript is off. Web chat needs it; the story above does not.</p></noscript>
 </section>
 
 <section class="how wrap" id="how" aria-labelledby="how-title">
@@ -166,8 +140,8 @@
     <h2 id="how-title">You ↔ Tomato.<br>Same network.</h2>
   </div>
   <div class="how-copy">
-    <p><strong>You</strong> are a person on Envelop — pick a name, find contacts, send text. <strong>Tomato</strong> is not another user account; it is the dorm-built computer itself, pinned at the top with a verified badge so you always know who you are talking to.</p>
-    <p>When you text Tomato, the message waits in Envelop until a nearby phone or Mac holds a Bluetooth bridge, then it appears on Tomato’s screen. Offline bridge? The note waits.</p>
+    <p><strong>You</strong> are whoever is online: pick a name and the green dots show who else is here. People come and go, and the list keeps up. <strong>Tomato</strong> is not another user account; it is the dorm-built computer itself, pinned at the top with a verified badge so you always know who you are talking to.</p>
+    <p>When you text Tomato, the message waits until the bridge — one Mac near Tomato holding a Bluetooth lease — forwards it to the screen. If the bridge is offline, the note waits until it returns. Leave Envelop, and your name and chats are deleted for good.</p>
     <div class="route" aria-label="You to Envelop to Tomato">
       <span>You</span><b aria-hidden="true">↔</b>
       <span>Envelop</span><b aria-hidden="true">↔</b>
@@ -180,53 +154,31 @@
   <div class="section-head">
     <div>
       <p class="eyebrow">03 / FIRST STEPS</p>
-      <h2 id="setup-title">From download to hello.</h2>
+      <h2 id="setup-title">From hello to Tomato.</h2>
     </div>
-    <p>Unsigned builds · download · enter your name.</p>
+    <p>Open the chat, enter a name, and watch for green dots.</p>
   </div>
   <div class="instructions">
-    <details id="install-mac">
-      <summary><span>01</span> Install on Mac</summary>
+    <details id="start-chat" open>
+      <summary><span>01</span> Start chatting</summary>
       <div>
-        <p>Download the Mac archive, unzip it, move Envelop.app into Applications. The build is unsigned, so macOS will object on first launch: right-click (Control-click) Envelop.app, choose Open, then Open again. If it still refuses, run <code>xattr -cr /Applications/Envelop.app</code> in Terminal and try again.</p>
-        <p>Open Envelop and enter your name. Bluetooth is only needed when connecting Tomato.</p>
-      </div>
-    </details>
-    <details id="install-ios">
-      <summary><span>02</span> Install on iPhone or iPad</summary>
-      <div>
-        <p>Prefer AltStore or SideStore: download the IPA (or Apple source if no IPA is listed), open it in AltStore/SideStore with your free Apple ID, then Install. Re-sign about every 7 days on a free Apple ID.</p>
-        <p>With a Mac and a cable: open <code>apple/Envelop.xcodeproj</code> from the source zip in Xcode, select your free Apple ID team and your device, then Run.</p>
-        <p>After install, open Envelop and enter your name.</p>
-        <a href="downloads/envelop-apple-source.zip" class="text-link" data-source="apple">Download Apple source</a>
-      </div>
-    </details>
-    <details id="install-android">
-      <summary><span>03</span> Install on Android</summary>
-      <div>
-        <p>Download the APK, open it, and allow installs from your browser or file manager when asked. Open Envelop and enter your name.</p>
-      </div>
-    </details>
-    <details id="install-windows">
-      <summary><span>04</span> Install on Windows</summary>
-      <div>
-        <p>Download the Windows archive, extract the folder, run Envelop.exe. If SmartScreen warns about an unknown publisher: More info → Run anyway. The published build is self-contained — no separate .NET install.</p>
-        <p>Open Envelop and enter your name.</p>
+        <p>Open <a href="chat/index.html" class="text-link">web chat</a> and enter a name. Everyone with a green dot is online right now, so open a conversation and send text. Send Tomato a hello and it answers from its screen.</p>
+        <p>Going quiet? Close the tab and you simply drop off the list. <strong>Leave Envelop</strong> in the sidebar deletes your name and chats for good.</p>
       </div>
     </details>
     <details id="install-tomato">
-      <summary><span>05</span> Meet Tomato</summary>
+      <summary><span>02</span> Meet Tomato</summary>
       <div>
-        <p>In Envelop, Tomato is a contact — the computer, not a person with a phone. When you send to Tomato, the text is meant for that machine’s screen. A nearby Apple client holds a Bluetooth lease so messages can cross from the Internet to the hardware.</p>
+        <p>In Envelop, Tomato is a contact — the computer, not a person with a phone. When you send to Tomato, the text is meant for that machine’s screen. A nearby Mac holds a Bluetooth lease so messages can cross from the Internet to the hardware.</p>
         <p>Only one device holds the Bluetooth connection at a time. Local BLE chat firmware stays on Tomato; the Internet path needs firmware that speaks Envelop’s binary protocol.</p>
         <p><a href="https://github.com/tmarhguy/tomato" class="text-link">Tomato on GitHub</a> · <a href="https://tomato.tmarhguy.com" class="text-link">Read the paper</a></p>
       </div>
     </details>
     <details id="network">
-      <summary><span>06</span> The test network</summary>
+      <summary><span>03</span> The test network</summary>
       <div>
-        <p>These downloads connect to the Envelop test network automatically. You only enter a name.</p>
-        <p>If you build from source yourself, bake the publishable network URL and key into the client. Never put a service-role key in any Envelop app.</p>
+        <p>Web chat connects to the Envelop test network automatically. You only enter a name.</p>
+        <p>Native clients live in the repo source (Mac holds the bridge; Android and Windows are internet-only) but are not distributed — the website is the app.</p>
       </div>
     </details>
   </div>
