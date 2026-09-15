@@ -321,20 +321,27 @@ function renderMe(editing) {
   me.innerHTML = '';
   const row = document.createElement('div');
   row.className = 'chat-me-row';
-  const selfDot = document.createElement('span');
-  selfDot.className = 'dot';
-  selfDot.title = 'Online';
-  row.appendChild(selfDot);
-  const name = document.createElement('strong');
+  const av = document.createElement('span');
+  av.className = 'avatar';
+  av.style.background = avatarColor(state.profile.avatar_id);
+  av.textContent = (state.profile.display_name || '?').slice(0, 1).toUpperCase();
+  row.appendChild(av);
+  const who = document.createElement('span');
+  who.className = 'who';
+  const name = document.createElement('b');
   name.textContent = state.profile.display_name;
-  row.appendChild(name);
   if (state.profile.verified) {
     const seal = document.createElement('img');
     seal.src = '../media/verified.svg';
     seal.alt = 'Verified';
     seal.width = 14; seal.height = 14;
-    row.appendChild(seal);
+    name.appendChild(seal);
   }
+  who.append(name);
+  const sub = document.createElement('small');
+  sub.textContent = 'Online';
+  who.appendChild(sub);
+  row.appendChild(who);
   if (!editing) {
     const pen = document.createElement('button');
     pen.type = 'button';
@@ -405,19 +412,11 @@ function renderPeople() {
       b.appendChild(seal);
     }
     who.appendChild(b);
-    if (p.is_device || p.pinned) {
-      const sub = document.createElement('small');
-      const online = p.is_device ? state.tomatoOnline : state.presenceMode && isFresh(p);
-      sub.textContent = online ? 'Online' : 'Offline';
-      who.appendChild(sub);
-    }
+    const sub = document.createElement('small');
+    const online = p.is_device ? state.tomatoOnline : !state.presenceMode || isFresh(p);
+    sub.textContent = online ? 'Online' : 'Offline';
+    who.appendChild(sub);
     btn.append(av, who);
-    if (!p.is_device && state.presenceMode && isFresh(p)) {
-      const dot = document.createElement('span');
-      dot.className = 'dot';
-      dot.title = 'Online';
-      btn.prepend(dot);
-    }
     btn.addEventListener('click', () => openPeer(p));
     li.appendChild(btn);
     if (state.isAdmin && !p.is_device && state.profile && p.id !== state.profile.id) {
@@ -463,11 +462,15 @@ function renderThread() {
     seal.width = 16; seal.height = 16;
     head.appendChild(seal);
   }
+  const sub = document.createElement('small');
   if (state.peer.is_device) {
-    const sub = document.createElement('small');
-    sub.textContent = state.tomatoOnline ? 'Online · notes appear on Tomato’s screen' : 'Offline · notes wait for a bridge';
-    head.appendChild(sub);
+    sub.textContent = state.tomatoOnline
+      ? 'Online · notes appear on Tomato’s screen'
+      : 'Offline · notes wait for a bridge';
+  } else {
+    sub.textContent = !state.presenceMode || isFresh(state.peer) ? 'Online' : 'Offline';
   }
+  head.appendChild(sub);
   renderNotice();
   const box = $('chat-messages');
   box.innerHTML = '';

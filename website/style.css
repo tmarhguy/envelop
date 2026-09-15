@@ -813,3 +813,17 @@ footer .disclaimer {
   max-width: 430px;
 }
 .hello-status strong { color: var(--ink); }
+
+/* —— Hero faces: you + Tomato thumbnails —— */
+.face {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.peer .face { margin-right: 2px; }
+.face.big { width: 40px; height: 40px; }
+.bubble-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 14px; }
+.bubble-row.out { justify-content: flex-end; }
+.bubble-row .bubble { margin-bottom: 0; }
