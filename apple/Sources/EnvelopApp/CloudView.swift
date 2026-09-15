@@ -1,10 +1,17 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
 
 struct CloudView: View {
     @StateObject private var session = CloudSession()
     @State private var name = ""
     @State private var query = ""
     @State private var draft = ""
+    @State private var editingName = false
+    @State private var profileName = ""
     var body: some View {
         Group {
             if !session.configured {
@@ -36,20 +43,54 @@ struct CloudView: View {
                                                 .accessibilityLabel("Verified")
                                         }
                                     }
-                                    Text(person.is_device ? (session.tomatoOnline ? "Online" : "Offline") : "@\(person.handle)")
-                                        .font(.caption).foregroundStyle(.secondary)
+                                    if person.is_device {
+                                        Text(session.tomatoOnline ? "Online" : "Offline")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    } else if person.pinned ?? false {
+                                        Text(session.isOnline(person) ? "Online" : "Offline")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    }
                                 }
                             }
                         }.buttonStyle(.plain)
                     }
                     .navigationTitle("Envelop")
-                    .toolbar {
-                        Button(session.bridgeState == .idle ? "Connect Tomato" : "Disconnect Tomato") {
-                            if session.bridgeState == .idle { session.connectTomato() } else { session.disconnectTomato() }
-                        }
-                    }
+                    .navigationSplitViewColumnWidth(min: 220, ideal: 260)
                     .safeAreaInset(edge: .bottom) {
-                        Text("Bridge: \(session.bridgeState.rawValue)").font(.caption).padding(8)
+                        VStack(alignment: .leading, spacing: 12) {
+                            #if os(macOS)
+                            Label(connectionLabel, systemImage: session.bridgeState.isInternetReachable ? "checkmark.circle.fill" : "antenna.radiowaves.left.and.right")
+                                .font(.callout).foregroundStyle(session.bridgeState.isInternetReachable ? .green : .secondary)
+                            Button {
+                                if session.bridgeState == .idle { session.connectTomato() } else { session.disconnectTomato() }
+                            } label: {
+                                Text(session.bridgeState == .idle ? "Connect to Tomato" : "Disconnect Tomato")
+                                    .frame(maxWidth: .infinity)
+                            }.buttonStyle(.borderedProminent)
+                            #else
+                            Label(session.tomatoOnline ? "Tomato online" : "Tomato offline", systemImage: session.tomatoOnline ? "checkmark.circle.fill" : "antenna.radiowaves.left.and.right")
+                                .font(.callout).foregroundStyle(session.tomatoOnline ? .green : .secondary)
+                            #endif
+                            if let me = session.profile {
+                                Divider()
+                                HStack {
+                                    Label(me.display_name, systemImage: "person.crop.circle")
+                                        .lineLimit(1).help(me.display_name)
+                                    if me.verified {
+                                        Image(systemName: "checkmark.seal.fill")
+                                            .foregroundStyle(EnvelopTheme.verified)
+                                            .font(.caption)
+                                            .accessibilityLabel("Verified")
+                                    }
+                                    Spacer()
+                                    Button {
+                                        profileName = me.display_name; editingName = true
+                                    } label: { Image(systemName: "pencil") }
+                                    .buttonStyle(.borderless).help("Edit name").accessibilityLabel("Edit name")
+                                }.font(.callout)
+                                Text(me.id.uuidString).font(.caption2).foregroundStyle(.secondary).textSelection(.enabled)
+                            }
+                        }.padding(14).background(.bar)
                     }
                     .searchable(text: $query, prompt: "Find people")
                     .task(id: query) {
@@ -62,12 +103,23 @@ struct CloudView: View {
                             ScrollViewReader { proxy in
                                 ScrollView {
                                     LazyVStack(alignment: .leading, spacing: 12) {
-                                        ForEach(session.messages) { message in
+                                        ForEach(session.visibleMessages) { message in
                                             HStack {
                                                 if message.sender_id == session.profile?.id { Spacer(minLength: 40) }
-                                                Text(message.body).padding(12)
+                                                VStack(alignment: .leading, spacing: 6) {
+                                                    Text(message.body).textSelection(.enabled)
+                                                    HStack(spacing: 12) {
+                                                        Text(messageTime(message.created_at)).font(.caption2).foregroundStyle(.secondary)
+                                                        Spacer(minLength: 8)
+                                                        Menu { messageActions(message) } label: {
+                                                            Image(systemName: "ellipsis")
+                                                        }.menuStyle(.borderlessButton).fixedSize()
+                                                        .accessibilityLabel("Message actions")
+                                                    }
+                                                }.padding(12)
                                                     .background(message.sender_id == session.profile?.id ? Color.green.opacity(0.15) : Color.gray.opacity(0.12))
                                                     .clipShape(RoundedRectangle(cornerRadius: 14))
+                                                    .contextMenu { messageActions(message) }
                                                 if message.sender_id != session.profile?.id { Spacer(minLength: 40) }
                                             }.id(message.id)
                                         }
@@ -75,6 +127,13 @@ struct CloudView: View {
                                 }.onChange(of: session.messages.last?.id) {
                                     if let id = session.messages.last?.id { proxy.scrollTo(id, anchor: .bottom) }
                                 }
+                            }
+                            if session.lastHiddenMessage != nil {
+                                HStack {
+                                    Text("Deleted on this Mac").font(.caption).foregroundStyle(.secondary)
+                                    Button("Undo") { session.undoHide() }
+                                    Spacer()
+                                }.padding(.horizontal).padding(.vertical, 6)
                             }
                             if peer.is_device && !session.tomatoOnline {
                                 Text("Messages wait in Envelop until Tomato has a bridge.").font(.caption).foregroundStyle(.secondary).padding(8)
@@ -107,11 +166,60 @@ struct CloudView: View {
             if !session.error.isEmpty { Text(session.error).font(.caption).foregroundStyle(.red).padding(8) }
         }
         .task { await session.restore() }
+        .sheet(isPresented: $editingName) {
+            VStack(spacing: 16) {
+                Text("Your name").font(.headline)
+                TextField("Your name", text: $profileName).textFieldStyle(.roundedBorder)
+                HStack {
+                    Button("Cancel") { editingName = false }
+                    Button("Save") {
+                        Task { if await session.updateName(profileName) { editingName = false } }
+                    }.disabled(session.busy || profileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || profileName.count > 32)
+                }
+                if !session.error.isEmpty { Text(session.error).foregroundStyle(.red).font(.caption) }
+            }.padding(24).frame(width: 340)
+        }
         .onDisappear { session.disconnectTomato() }
     }
 
     private var canSend: Bool {
         !draft.isEmpty && draft.utf8.count <= 256 && !session.busy
+    }
+
+    #if os(macOS)
+    private var connectionLabel: String {
+        switch session.bridgeState {
+        case .idle: return "Tomato disconnected"
+        case .scanning: return "Looking for Tomato…"
+        case .bleConnected, .gattReady: return "Connecting to Tomato…"
+        case .tomatoVerified, .leaseAcquired, .syncing: return "Syncing Tomato…"
+        case .online, .bridging: return "Tomato connected"
+        case .internetLost: return "Internet unavailable"
+        case .leaseLost: return "Bridge connection lost"
+        case .disconnected: return "Tomato disconnected"
+        }
+    }
+    #endif
+
+    @ViewBuilder private func messageActions(_ message: CloudMessage) -> some View {
+        Button("Copy") {
+            #if os(macOS)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(message.body, forType: .string)
+            #else
+            UIPasteboard.general.string = message.body
+            #endif
+        }
+        Button("Use text in message") { draft = message.body }
+        Divider()
+        Button("Delete for me on this Mac", role: .destructive) { session.hideMessage(message) }
+    }
+
+    private func messageTime(_ value: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+        return date?.formatted(date: .abbreviated, time: .shortened) ?? ""
     }
 
     /// Enter / IME Send / button all share this path. Desktop: Enter sends, Shift+Enter newlines.

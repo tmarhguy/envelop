@@ -10,6 +10,11 @@ struct CloudProfile: Codable, Identifiable, Hashable {
     let avatar_id: Int
     let is_device: Bool
     let verified: Bool
+    let presence: PresenceInfo?
+    let pinned: Bool?
+}
+struct PresenceInfo: Codable, Hashable {
+    let last_seen: String
 }
 struct CloudMessage: Codable, Identifiable {
     let id: UUID
@@ -35,6 +40,23 @@ final class CloudSession: ObservableObject {
     @Published var profile: CloudProfile?
     @Published var people: [CloudProfile] = []
     @Published var messages: [CloudMessage] = []
+    @Published private(set) var lastHiddenMessage: CloudMessage?
+    private var hiddenMessages: Set<String> = []
+    private var hiddenKey: String? { profile.map { "Envelop.hiddenMessages.\(account).\($0.id.uuidString)" } }
+    var visibleMessages: [CloudMessage] { messages.filter { !hiddenMessages.contains($0.id.uuidString) } }
+    func hideMessage(_ message: CloudMessage) {
+        guard let hiddenKey else { return }
+        lastHiddenMessage = message
+        hiddenMessages.insert(message.id.uuidString)
+        UserDefaults.standard.set(Array(hiddenMessages), forKey: hiddenKey)
+        objectWillChange.send()
+    }
+    func undoHide() {
+        guard let message = lastHiddenMessage, let hiddenKey else { return }
+        hiddenMessages.remove(message.id.uuidString)
+        UserDefaults.standard.set(Array(hiddenMessages), forKey: hiddenKey)
+        lastHiddenMessage = nil
+    }
     @Published var selected: CloudProfile?
     @Published var error = ""
     @Published var busy = false
@@ -64,6 +86,8 @@ final class CloudSession: ObservableObject {
     private var base: URL?
     private var key = ""
     private var account = ""
+    private var presenceMode: Bool?
+    private var lastBeat = Date.distantPast
 
     var configured: Bool { base != nil && !key.isEmpty }
     init() {
@@ -99,13 +123,23 @@ final class CloudSession: ObservableObject {
     }
     func search(_ query: String = "") async {
         do {
-            // Encode as a query value, not PostgREST expression syntax.
-            let filtered = query.filter { $0.isLetter || $0.isNumber || $0 == " " || $0 == "-" }
-            var components = URLComponents()
-            components.queryItems = [URLQueryItem(name: "select", value: "*"), URLQueryItem(name: "order", value: "is_device.desc,display_name.asc,id.asc"), URLQueryItem(name: "limit", value: "50")]
-            if !filtered.isEmpty { components.queryItems?.append(URLQueryItem(name: "display_name", value: "ilike.*\(filtered)*")) }
-            let rows: [CloudProfile] = try await request("rest/v1/profiles\(components.string ?? "")")
+            let rows: [CloudProfile]
+            if presenceMode == false {
+                rows = try await fetchPeople(query, presence: false)
+            } else {
+                do {
+                    rows = try await fetchPeople(query, presence: true)
+                    presenceMode = true
+                } catch {
+                    // Backend predates presence: show everyone, skip heartbeats.
+                    rows = try await fetchPeople(query, presence: false)
+                    presenceMode = false
+                }
+            }
             var visible = rows.filter { $0.id != profile?.id }
+            if presenceMode != false {
+                visible = visible.filter { $0.is_device || ($0.pinned ?? false) || isOnline($0) }
+            }
             if !visible.contains(where: { $0.is_device }) {
                 let pinned: [CloudProfile] = try await request("rest/v1/profiles?id=eq.\(deviceID)&select=*")
                 visible.insert(contentsOf: pinned, at: 0)
@@ -113,6 +147,28 @@ final class CloudSession: ObservableObject {
             guard !Task.isCancelled else { return }
             people = visible
         } catch { self.error = error.localizedDescription }
+    }
+    private func fetchPeople(_ query: String, presence: Bool) async throws -> [CloudProfile] {
+        // Encode as a query value, not PostgREST expression syntax.
+        let filtered = query.filter { $0.isLetter || $0.isNumber || $0 == " " || $0 == "-" }
+        var components = URLComponents()
+        components.queryItems = [URLQueryItem(name: "select", value: presence ? "*,presence(last_seen)" : "*"), URLQueryItem(name: "order", value: "is_device.desc,display_name.asc,id.asc"), URLQueryItem(name: "limit", value: "50")]
+        if !filtered.isEmpty { components.queryItems?.append(URLQueryItem(name: "display_name", value: "ilike.*\(filtered)*")) }
+        return try await request("rest/v1/profiles\(components.string ?? "")")
+    }
+    func isOnline(_ person: CloudProfile) -> Bool {
+        guard let stamp = person.presence?.last_seen else { return presenceMode == false }
+        let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let date = formatter.date(from: stamp) ?? ISO8601DateFormatter().date(from: stamp)
+        return (date ?? .distantPast).timeIntervalSinceNow > -45
+    }
+    func updateName(_ name: String) async -> Bool {
+        guard !busy else { return false }
+        busy = true; defer { busy = false }
+        do {
+            let updated: CloudProfile = try await request("rest/v1/rpc/update_profile_name", body: ["p_name": name])
+            profile = updated; error = ""; return true
+        } catch { self.error = error.localizedDescription; return false }
     }
     func open(_ peer: CloudProfile) async {
         selectionGeneration += 1
@@ -143,7 +199,11 @@ final class CloudSession: ObservableObject {
         } catch { self.error = error.localizedDescription; return false }
     }
     func connectTomato() {
-        guard profile != nil, radio == nil else { return }
+        guard profile != nil else {
+            error = "Enter Envelop first — the Tomato bridge needs your identity."
+            return
+        }
+        guard radio == nil else { return }
         let ble = EnvelopBLE(binaryMode: true); radio = ble
         bridgeState = .scanning
         ble.onLink = { [weak self] link in
@@ -162,7 +222,12 @@ final class CloudSession: ObservableObject {
             } else {
                 self.bridgeTask?.cancel(); self.bridgeGeneration = UUID()
                 self.handshakeTask?.cancel()
-                self.bridgeState = link == .scanning ? .scanning : .disconnected
+                if link == .bluetoothOff {
+                    self.bridgeState = .disconnected
+                    self.error = "Mac Bluetooth is off — turn it on so Envelop can reach Tomato."
+                } else {
+                    self.bridgeState = link == .scanning ? .scanning : .disconnected
+                }
                 let instance = self.bridgeInstance
                 Task { [weak self] in await self?.release(instance) }
                 self.routes.reset(); self.deliveryTokens.removeAll(); self.announcedRoutes.removeAll()
@@ -268,13 +333,26 @@ final class CloudSession: ObservableObject {
                 if let frame = try? DeviceFrame(type: .chatMessage, route: route, payload: payload), radio?.sendFrame(frame) == true { lastForward[item.message_id] = Date() }
             }
             bridgeState = .online
+            if let status = try? DeviceFrame(type: .status, payload: Data([2])) { _ = radio?.sendFrame(status) }
+            if error.contains("hold the Tomato bridge") || error.contains("not provisioned") {
+                error = ""
+            }
         } catch {
             guard generation == bridgeGeneration, !Task.isCancelled else { return }
-            bridgeState = .internetLost; self.error = error.localizedDescription
+            bridgeState = .internetLost
+            if let status = try? DeviceFrame(type: .status, payload: Data([1])) { _ = radio?.sendFrame(status) }
+            let message = error.localizedDescription
+            if message.lowercased().contains("provision") {
+                let id = profile?.id.uuidString ?? "unknown"
+                self.error = "This account can't hold the Tomato bridge yet. Provision it, then reconnect. Profile ID: \(id)"
+            } else {
+                self.error = message
+            }
             await release(bridgeInstance)
         }
     }
     private func startPolling() {
+        if let hiddenKey { hiddenMessages = Set(UserDefaults.standard.stringArray(forKey: hiddenKey) ?? []) }
         pollTask?.cancel()
         pollTask = Task { [weak self] in
             await self?.search()
@@ -286,6 +364,10 @@ final class CloudSession: ObservableObject {
     }
     private func poll() async {
         do {
+            if presenceMode != false, Date().timeIntervalSince(lastBeat) > 15 {
+                lastBeat = Date()
+                let _: String? = try? await request("rest/v1/rpc/heartbeat", body: [String: Any]())
+            }
             struct Lease: Decodable { let expires_at: String }
             let leases: [Lease] = try await request("rest/v1/device_bridges?device_id=eq.00000000-0000-0000-0000-000000000001&select=expires_at")
             let formatter = ISO8601DateFormatter(); formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -328,7 +410,7 @@ final class CloudSession: ObservableObject {
             let parsed = try? JSONDecoder().decode(APIError.self, from: data)
             throw CloudError.message(parsed?.message ?? parsed?.msg ?? parsed?.error_description ?? "Envelop network request failed.")
         }
-        return try JSONDecoder().decode(T.self, from: data)
+        return try decodeCloudResponse(T.self, from: data)
     }
     private var keychainQuery: [String: Any] { [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "Envelop.Supabase", kSecAttrAccount as String: account] }
     private func loadToken() -> Data? {

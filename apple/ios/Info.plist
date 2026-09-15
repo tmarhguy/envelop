@@ -8,14 +8,6 @@
 	<string>sb_publishable_nhog8psQAljHGK3RvIyp-Q_26yCYmsF</string>
 	<key>EnvelopSupabaseURL</key>
 	<string>https://sevnusobochafwuvmuvu.supabase.co</string>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Envelop chats with your Tomato computer over Bluetooth LE UART.</string>
-	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Envelop chats with your Tomato computer over Bluetooth LE UART.</string>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>bluetooth-central</string>
-	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
