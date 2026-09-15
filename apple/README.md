@@ -1,5 +1,7 @@
 # Envelop Apple (iOS first, macOS shares the core)
 
+> Operator build: the Mac app is the personal bridge console that holds the Tomato lease. Everyone else uses web chat; native clients are undistributed.
+
 Lightest native build. Zero dependencies: SwiftUI + CoreBluetooth +
 Network only. One screen: the Envelop network (people + Tomato) with the
 bridge role inside. No avatar picker (one assigned avatar), no legacy tabs.
@@ -45,11 +47,11 @@ cp .build/debug/Envelop Envelop.app/Contents/MacOS/Envelop
 cp mac/Info.plist Envelop.app/Contents/Info.plist
 open Envelop.app   # allow Bluetooth when macOS asks
 ```
-- iPhone: full Xcode required (`xcodebuild` today is CLT-only on this Mac,
+- iPhone (internet-only, never holds the bridge): full Xcode required (`xcodebuild` today is CLT-only on this Mac,
   so device builds wait on Xcode). Open `apple/` in Xcode, pick an iPhone
   simulator/device, Run. Add `ios/Info.plist` keys + AppIcon to the Xcode
   target when creating it (File > New > Project > iOS App, then drag in
-  `Sources/`).
+  `Sources/`). No Bluetooth usage keys or background modes are needed on iOS.
 ```
 
 Icon: red circle + white paper plane (`EnvelopAvatar`). Export a real
