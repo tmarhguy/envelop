@@ -10,6 +10,12 @@ const STORE_KEY = 'envelop.web.session.v1';
 const POLL_MS = 3000;
 const BEAT_MS = 15000;
 const FRESH_MS = 45000;
+// Migration-sensitive API strings live here so a renamed RPC is one edit.
+const COMPUTE_API = Object.freeze({
+  enqueue: 'rest/v1/rpc/enqueue_compute_job',
+  read: 'rest/v1/rpc/my_compute_job',
+  cancel: 'rest/v1/rpc/cancel_compute_job',
+});
 
 const state = {
   creds: null,
@@ -28,7 +34,45 @@ const state = {
   busy: false,
 };
 
+const localJobs = [];
+const messageTabs = new Map();
+const expandedMessages = new Set();
+let pendingDraft = null;
 const $ = (id) => document.getElementById(id);
+const MOBILE_CHAT = '(max-width: 760px)';
+
+function mobileChat() {
+  return window.matchMedia(MOBILE_CHAT).matches;
+}
+
+function bindAppHeight() {
+  const apply = () => {
+    const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    document.documentElement.style.setProperty('--app-height', Math.round(h) + 'px');
+  };
+  apply();
+  if (window.visualViewport) {
+    visualViewport.addEventListener('resize', apply);
+    visualViewport.addEventListener('scroll', apply);
+  }
+  window.addEventListener('resize', apply);
+}
+
+function setPane(pane) {
+  const grid = $('chat-grid');
+  if (!grid) return;
+  grid.dataset.pane = pane;
+  document.body.classList.toggle('chat-thread-open', pane === 'thread');
+}
+
+function closeThread() {
+  state.peer = null;
+  state.conversation = null;
+  state.messages = [];
+  setPane('list');
+  renderPeople();
+  renderThread();
+}
 
 function showError(text) {
   const bar = $('chat-error');
@@ -122,6 +166,18 @@ async function enter() {
     await checkAdmin();
     renderChat();
     startPolling();
+    if (pendingDraft) {
+      const text = pendingDraft;
+      pendingDraft = null;
+      try {
+        await search('');
+        const tomato = state.people.find((p) => p.is_device) || null;
+        if (tomato) await openPeer(tomato);
+      } catch (e) { /* draft still fills below */ }
+      const draft = $('chat-draft');
+      if (draft) { draft.value = text; draft.focus(); }
+      showError('');
+    }
   } catch (err) {
     showError(err.message);
   } finally {
@@ -183,11 +239,16 @@ async function search(query) {
 }
 
 async function openPeer(peer) {
+  const switching = !(state.peer && state.peer.id === peer.id);
   state.peer = peer;
   state.conversation = null;
   state.messages = [];
+  setPane('thread');
   renderPeople();
   renderThread();
+  if (mobileChat() && switching && !(history.state && history.state.envelopPane === 'thread')) {
+    history.pushState({ envelopPane: 'thread' }, '');
+  }
   try {
     state.conversation = await request('rest/v1/rpc/get_or_create_dm', { body: { p_peer: peer.id } });
     await fetchMessages();
@@ -226,9 +287,53 @@ async function send() {
     showError('Use 1–256 bytes. Tomato accepts printable ASCII.');
     return;
   }
+  if (state.peer.is_device) {
+    let compiled;
+    let compiler;
+    try { compiler = await import('./virtual/compiler.mjs'); compiled = compiler.compile(body); }
+    catch (err) { showError(err.message); return; }
+    if (compiled) {
+      const job = {id: crypto.randomUUID(), conversation: state.conversation, body,
+        name: state.profile.display_name, created_at: new Date().toISOString(),
+        program: compiled.canonical,
+        hex: compiler.hex(compiled.bytes),
+        version: 'Remote bytecode v1',
+        understood: compiled.understood || null,
+        status:'offer', compute:true};
+      localJobs.push(job);
+      input.value='';showError('');renderThread();
+      // Hardware first when Tomato is online: the leased bridge runs the same
+      // bytes on the real machine. Offline (or enqueue failure) stays virtual.
+      if (state.tomatoOnline) runHardware(job);
+      else runVirtual(job);
+      return;
+    }
+    // Plain chat always sends; the server queues while hardware is away.
+    // Firmware only auto-replies to canonical "Hello" and "/help": normalize
+    // greeting variants (e.g. "Hello, Tomato.") client-side, same as the
+    // Virtual Tomato worker, so hardware and virtual agree.
+    const greet = compiler.normalizeGreeting ? compiler.normalizeGreeting(body) : null;
+    if (greet || /^(help|what can you do)[?.!]*$/i.test(body.trim())) {
+      const normalized = greet || '/help';
+      state.busy = true;
+      try {
+        await request('rest/v1/rpc/send_message' , {
+          body: { p_conversation: state.conversation, p_body: normalized, p_nonce: crypto.randomUUID() },
+        });
+        input.value = '';
+        showError('');
+        await fetchMessages();
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        state.busy = false;
+      }
+      return;
+    }
+  }
   state.busy = true;
   try {
-    await request('rest/v1/rpc/send_message', {
+    await request('rest/v1/rpc/send_message' , {
       body: { p_conversation: state.conversation, p_body: body, p_nonce: crypto.randomUUID() },
     });
     input.value = '';
@@ -305,11 +410,13 @@ async function flushAll() {
 function renderWelcome() {
   $('chat-welcome').hidden = false;
   $('chat-grid').hidden = true;
+  setPane('list');
 }
 
 function renderChat() {
   $('chat-welcome').hidden = true;
   $('chat-grid').hidden = false;
+  setPane(state.peer ? 'thread' : 'list');
   renderMe(false);
   renderPeople();
   renderAdmin();
@@ -450,8 +557,14 @@ function renderAdmin() {
 function renderThread() {
   const empty = $('chat-empty');
   const wrap = $('chat-convo');
-  if (!state.peer) { empty.hidden = false; wrap.hidden = true; return; }
+  if (!state.peer) {
+    empty.hidden = false;
+    wrap.hidden = true;
+    setPane('list');
+    return;
+  }
   empty.hidden = true; wrap.hidden = false;
+  setPane('thread');
   const head = $('chat-peer');
   head.innerHTML = '';
   head.append(state.peer.display_name);
@@ -466,35 +579,80 @@ function renderThread() {
   if (state.peer.is_device) {
     sub.textContent = state.tomatoOnline
       ? 'Online · notes appear on Tomato’s screen'
-      : 'Offline · notes wait for a bridge';
+      : 'Offline · Virtual Tomato available';
   } else {
     sub.textContent = !state.presenceMode || isFresh(state.peer) ? 'Online' : 'Offline';
   }
   head.appendChild(sub);
   renderNotice();
   const box = $('chat-messages');
+  const prevTop = box.scrollTop;
+  const fresh = box.dataset.conv !== String(state.conversation || '');
+  const nearBottom = fresh || (box.scrollHeight - prevTop - box.clientHeight < 80);
   box.innerHTML = '';
   for (const m of state.messages) {
     const div = document.createElement('div');
     div.className = 'chat-msg ' + (m.sender_id === (state.profile && state.profile.id) ? 'me' : 'them');
-    div.textContent = m.body;
+    appendMessageViews(div, m.id, m.body, null, null, 'UTF-8 message bytes', ['Text','Hex']);
     const t = document.createElement('time');
     const d = new Date(m.created_at);
     t.textContent = isNaN(d) ? '' : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     div.appendChild(t);
     box.appendChild(div);
   }
-  box.scrollTop = box.scrollHeight;
+  for (const job of localJobs.filter(j=>j.conversation===state.conversation)) box.appendChild(renderJob(job));
+  box.dataset.conv = String(state.conversation || '');
+  box.scrollTop = nearBottom ? box.scrollHeight : prevTop;
 }
 
 function renderNotice() {
   const n = $('chat-notice');
   if (state.peer && state.peer.is_device && !state.tomatoOnline) {
     n.hidden = false;
-    n.textContent = 'Messages wait in Envelop until Tomato has a bridge (a Mac holding the lease).';
+    n.innerHTML = '';
+    n.append(document.createTextNode('Hardware Tomato is offline. Notes queue and deliver when its bridge is back.'));
   } else {
     n.hidden = true;
   }
+  renderBanner();
+}
+
+function renderBanner() {
+  const bar = $('vt-banner');
+  if (bar) bar.hidden = !(state.profile && !$('chat-grid').hidden && state.peer && state.peer.is_device && !state.tomatoOnline);
+  // Preview is always available for Tomato: virtual-only, labeled, never queued.
+  const preview = $('vt-preview');
+  if (preview) preview.hidden = !(state.profile && !$('chat-grid').hidden && state.peer && state.peer.is_device);
+}
+
+async function previewDraft() {
+  const input = $('chat-draft');
+  let body = input.value;
+  if (!body && state.conversation) {
+    const me = state.profile && state.profile.id;
+    const last = [...state.messages].reverse().find(m => m.sender_id === me);
+    if (last) body = last.body;
+  }
+  if (!body || !state.conversation || !state.peer) {
+    showError('Type a message first, then preview it in Virtual Tomato.');
+    if (input) input.focus();
+    return;
+  }
+  let compiled, hex;
+  try {
+    const m = await import('./virtual/compiler.mjs');
+    compiled = m.compile(body); hex = m.hex;
+  } catch (err) { showError(err.message); return; }
+  if (compiled) { send(); return; }
+  const job = {id: crypto.randomUUID(), conversation: state.conversation, body,
+    name: state.profile.display_name, created_at: new Date().toISOString(),
+    program: 'Chat text · no assembly program is sent.',
+    hex: hex(new TextEncoder().encode(body)),
+    version: 'UTF-8 chat text', understood: null,
+    status:'offer', compute:false, preview:true};
+  localJobs.push(job);
+  input.value='';showError('');renderThread();
+  runVirtual(job);
 }
 
 async function leave() {
@@ -529,6 +687,37 @@ if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', () => {
     $('chat-join').addEventListener('click', enter);
     $('chat-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') enter(); });
+    // Tappable examples: tap enters the exact text, addressed to Tomato.
+    document.querySelectorAll('.try-chip').forEach((chip) => {
+      chip.addEventListener('click', async () => {
+        const text = chip.getAttribute('data-example') || chip.textContent.trim();
+        // Already inside chat: open Tomato and fill the composer.
+        if (state.profile && !$('chat-grid').hidden) {
+          const tomato = state.people.find((p) => p.is_device);
+          if (tomato && (!state.peer || state.peer.id !== tomato.id)) {
+            try { await openPeer(tomato); } catch (e) { /* fall through to fill */ }
+          }
+          const draft = $('chat-draft');
+          if (draft) { draft.value = text; draft.focus(); }
+          showError('');
+          return;
+        }
+        // Welcome screen: need a name first, then join with the example queued.
+        const nameInput = $('chat-name');
+        if (!nameInput || !nameInput.value.trim()) {
+          pendingDraft = text;
+          const hint = $('try-hint');
+          if (hint) {
+            hint.hidden = false;
+            hint.textContent = 'Pick a name above, press Enter — we’ll fill in “' + text + '” for Tomato.';
+          }
+          if (nameInput) nameInput.focus();
+          return;
+        }
+        pendingDraft = text;
+        enter();
+      });
+    });
     $('chat-send').addEventListener('click', send);
     $('chat-draft').addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -539,8 +728,173 @@ if (typeof window !== 'undefined') {
     });
     $('chat-forget').addEventListener('click', forget);
     $('chat-leave').addEventListener('click', leave);
+    $('vt-preview').addEventListener('click', previewDraft);
+    $('chat-back').addEventListener('click', () => {
+      if (history.state && history.state.envelopPane === 'thread') history.back();
+      else closeThread();
+    });
+    window.addEventListener('popstate', () => {
+      if (state.peer && mobileChat()) closeThread();
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && state.peer && mobileChat() && !$('chat-grid').hidden) {
+        if (history.state && history.state.envelopPane === 'thread') history.back();
+        else closeThread();
+      }
+    });
+    bindAppHeight();
+    for (const menu of document.querySelectorAll('.site-menu')) {
+      menu.addEventListener('click', event => { if (event.target.closest('a')) menu.open = false; });
+      document.addEventListener('click', event => { if (!menu.contains(event.target)) menu.open = false; });
+      menu.addEventListener('keydown', event => {
+        if (event.key === 'Escape') { menu.open = false; menu.querySelector('summary').focus(); }
+      });
+    }
     restore();
   });
 }
 
-if (typeof module !== 'undefined') module.exports = { avatarFor: avatarFor };
+if (typeof module !== 'undefined') module.exports = { avatarFor, computeResolution };
+
+
+// All rendering uses textContent. Program/hex never become executable markup.
+function appendMessageViews(parent,id,text,program,bytes,version,modes) {
+  const tabs=document.createElement('div');tabs.className='message-tabs';tabs.setAttribute('role','group');tabs.setAttribute('aria-label','Message representation');
+  const content=document.createElement('div');content.className='message-content';
+  const choices=modes||['Text','Program','Hex'];
+  const paint=()=>{const mode=messageTabs.get(id)||'Text';for(const b of tabs.children)b.setAttribute('aria-pressed',String(b.textContent===mode));
+    content.textContent=mode==='Text'?text:mode==='Program'?program:version+'\n'+(bytes||Array.from(new TextEncoder().encode(text),b=>b.toString(16).padStart(2,'0').toUpperCase()).join(' '));
+    content.classList.toggle('code-view',mode!=='Text');};
+  for(const label of choices){const b=document.createElement('button');b.type='button';b.textContent=label;b.onclick=()=>{messageTabs.set(id,label);paint();};tabs.append(b);}
+  parent.append(tabs,content);paint();
+}
+function renderJob(job) {
+ const card=document.createElement('article');card.className='chat-job';
+ const q=document.createElement('div');q.className='job-text';q.textContent=job.body;card.append(q);
+ if(job.compute&&job.understood){
+  const u=document.createElement('p');u.className='job-understood';
+  const lab=document.createElement('small');lab.textContent='Envelope understood';u.append(lab);
+  const line=document.createElement('code');line.textContent=job.understood;u.append(line);card.append(u);
+ }
+   const status=document.createElement('p');status.className='job-status';
+   status.textContent=job.status==='running'
+     ? (job.via==='hardware'?'Waiting for physical Tomato…':'Virtual Tomato is running your message…')
+     :job.status==='done'?job.target:job.error||'Virtual execution failed';
+   card.append(status);
+   if (job.status==='error' && job.compute && job.hardwareAttempt && job.virtualSafe && !(job.replies&&job.replies.length)) {
+     const note=document.createElement('p');note.className='job-status';
+     note.textContent='The durable hardware job is terminal — nothing will replay later.';
+     const fb=document.createElement('button');fb.type='button';fb.textContent='Run in Virtual Tomato';
+     fb.onclick=()=>{job.hwSeq=(job.hwSeq||0)+1;job.status='offer';job.error=null;job.via=null;job.hardwareAttempt=false;job.virtualSafe=false;runVirtual(job);};
+     note.append(document.createTextNode(' '));note.append(fb);card.append(note);
+   }
+  const det=document.createElement('details');det.className='job-exec';
+ const sum=document.createElement('summary');sum.textContent='View execution';det.append(sum);
+ if(job.compute){
+  const pl=document.createElement('div');pl.className='exec-block';
+  const ph=document.createElement('small');ph.textContent='Program · '+job.version;pl.append(ph);
+  const pre=document.createElement('pre');pre.textContent=job.program;pl.append(pre);det.append(pl);
+ }
+ const hx=document.createElement('div');hx.className='exec-block';
+ const hh=document.createElement('small');hh.textContent=job.compute?('Bytes · '+job.version):'Bytes · UTF-8 chat text';hx.append(hh);
+ const hxpre=document.createElement('pre');hxpre.textContent=job.hex||'';hx.append(hxpre);det.append(hx);
+ card.append(det);
+  for(const reply of (job.replies||[])){const bubble=document.createElement('div');bubble.className='virtual-reply';const label=document.createElement('small');label.textContent=job.via==='hardware'?'Physical Tomato · hardware reply':job.compute?'Virtual Tomato · OS reply':'Virtual Tomato · reply';bubble.append(label);const t=document.createElement('div');t.className='virtual-text';t.textContent=reply;bubble.append(t);card.append(bubble);}
+  return card;
+}
+function computeResolution(status) {
+  if (status === 'completed') return 'physical';
+  if (status === 'cancelled' || status === 'failed') return 'virtual-safe';
+  return 'unknown';
+}
+async function runHardware(job) {
+  // Only authenticated online sessions enter the durable queue. Virtual may
+  // follow only a terminal failed/cancelled row; ambiguous jobs never replay.
+  if (!state.tomatoOnline) { runVirtual(job); return; }
+  job.hardwareAttempt = true; job.virtualSafe = false;
+  job.via = 'hardware'; job.status = 'running';
+  job.hwSeq = (job.hwSeq || 0) + 1;
+  const seq = job.hwSeq;
+  renderThread();
+  const started = Date.now();
+  const alive = () => job.hwSeq === seq && job.status === 'running';
+  let jobId = null;
+  const resolveCancellation = async () => {
+    if (!jobId) return 'unknown';
+    try {
+      const final = await request(COMPUTE_API.cancel, { body: { p_job: jobId } });
+      const resolution = computeResolution(final && final.status);
+      if (resolution === 'physical') {
+        job.status = 'done';
+        job.replies = [final.result_text || 'Tomato completed the job.'];
+        job.target = 'Physical Tomato · durable hardware job';
+        renderThread();
+      }
+      return resolution;
+    } catch (e) {
+      return 'unknown';
+    }
+  };
+  const showInterrupted = async () => {
+    const resolution = await resolveCancellation();
+    if (resolution === 'physical' || !alive()) return;
+    job.status = 'error';
+    job.virtualSafe = resolution === 'virtual-safe';
+    job.error = resolution === 'virtual-safe'
+      ? 'Physical Tomato became unavailable; the durable job is terminal.'
+      : 'Tomato execution is unknown. Virtual was not started, preventing a later hardware replay.';
+    renderThread();
+  };
+  try {
+    const enq = await request(COMPUTE_API.enqueue, {
+      body: { p_device: DEVICE_ID, p_conversation: job.conversation, p_job_hex: job.hex },
+    });
+    jobId = enq && enq.id;
+    if (!jobId) throw new Error('Hardware submission could not be confirmed.');
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 2000));
+      if (!alive()) return;
+      let cur;
+      try {
+        cur = await request(COMPUTE_API.read, { body: { p_job: jobId } });
+      } catch (e) {
+        await showInterrupted();
+        return;
+      }
+      if (!alive()) return;
+      if (cur.status === 'completed') {
+        job.status = 'done'; job.replies = [cur.result_text];
+        job.target = 'Physical Tomato · durable hardware job';
+        renderThread(); return;
+      }
+      if (cur.status === 'failed' || cur.status === 'cancelled') {
+        job.status = 'error'; job.virtualSafe = true;
+        job.error = cur.result_text || 'The physical Tomato job is terminal.';
+        renderThread(); return;
+      }
+      if (Date.now() - started > 25000) {
+        await showInterrupted();
+        return;
+      }
+    }
+  } catch (err) {
+    if (!alive() && job.status !== 'running') return;
+    // A lost enqueue response can hide a durable queued job. With no id it
+    // cannot be cancelled safely, so do not offer virtual execution.
+    job.status = 'error';
+    job.error = 'Hardware submission is unknown. Virtual was not started, preventing a later hardware replay.';
+    renderThread();
+  }
+}
+function runVirtual(job) {
+ if(job.status!=='offer')return;
+ job.status='running';renderThread();
+ const worker=new Worker('./virtual/worker.mjs',{type:'module'});
+ const timer=setTimeout(()=>finish('Virtual Tomato timed out. Your message was not queued for hardware.'),30000);
+ function finish(error){clearTimeout(timer);worker.terminate();if(error){job.status='error';job.error=error;}renderThread();}
+ worker.onerror=()=>finish('Could not start Virtual Tomato. Reload the page and try again.');
+  worker.onmessage=({data})=>{if(data.kind==='compiled'){job.program=data.program;job.hex=data.hex;job.version=data.version;if(data.understood)job.understood=data.understood;renderThread();}
+ else if(data.kind==='result'){job.status='done';job.replies=data.replies;job.target=data.target;finish();}
+ else if(data.kind==='error')finish(data.error);};
+ worker.postMessage({text:job.body,name:job.name});
+}

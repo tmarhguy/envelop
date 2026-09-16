@@ -18,11 +18,26 @@
     <img src="favicon.svg" width="34" height="34" alt="">
     <span class="brand-name">Envelop</span>
   </a>
-  <nav aria-label="Main navigation">
+  <nav class="desk-nav" aria-label="Main navigation">
+    <a href="#tomato-world">Virtual Tomato</a>
+    <a href="#compute">Compute</a>
+    <a href="chat/index.html">Chat</a>
     <a href="#origin">Origin</a>
     <a href="#how">How it works</a>
-    <a href="chat/index.html">Chat</a>
   </nav>
+  <details class="site-menu">
+    <summary aria-label="Open menu"><span></span><span></span><span></span></summary>
+    <nav aria-label="All pages">
+      <a href="chat/index.html">Chat</a>
+      <a href="#tomato-world">Virtual Tomato</a>
+      <a href="https://tomato.tmarhguy.com/virtual.html">Play Tomato OS</a>
+      <a href="#compute">Compute</a>
+      <a href="https://tomato.tmarhguy.com/compute.html">Tomato compute</a>
+      <a href="#origin">Origin</a>
+      <a href="#how">How it works</a>
+      <a href="https://tomato.tmarhguy.com/">Tomato</a>
+    </nav>
+  </details>
 </header>
 
 <main>
@@ -33,7 +48,8 @@
     <p class="intro">Pick a name and say hello to <a class="inline-link" href="https://tomato.tmarhguy.com">Tomato</a> — a computer in a dorm room that answers.</p>
     <div class="hero-actions">
       <a class="jump solid" href="chat/index.html">Open web chat</a>
-      <a class="jump quiet" href="#origin">Why it exists</a>
+      <a class="jump quiet" href="https://tomato.tmarhguy.com/virtual.html">Play Virtual Tomato</a>
+      <a class="jump quiet" href="#compute">How compute works</a>
     </div>
     <form class="hello-form" id="hello-form">
       <input id="hello-text" type="text" maxlength="256" placeholder="Say hello to Tomato…" aria-label="Say hello to Tomato" autocomplete="off">
@@ -55,6 +71,28 @@
   </div>
 </section>
 
+<section class="world wrap" id="tomato-world" aria-labelledby="world-title">
+<p class="eyebrow">THE COMPUTER BEHIND THE CONTACT</p>
+<div class="world-heading"><h2 id="world-title">Meet Tomato.<br>Then step inside.</h2><p>A custom CPU, an assembly-written operating system, and a messenger on the FPGA. You can explore its desktop right in your browser, even when the physical computer is offline.</p></div>
+<div class="world-cards">
+<a class="world-card" href="https://tomato.tmarhguy.com/#virtual-world"><span class="eyebrow">01 / PLAY</span><h3>Boot its world.</h3><p>Arrow keys and Enter. Tetris, Snake, five-lane Racer, Tribonacci, and more. No installation. Nothing loads until you press Play.</p><span class="world-link">Run Tomato OS →</span></a>
+<a class="world-card" href="https://tomato.tmarhguy.com/virtual.html"><span class="eyebrow">02 / EXPLORE</span><h3>Chat on both sides.</h3><p>Open Envelop inside Virtual Tomato and connect the demo phone. See contacts, incoming messages, and OS-generated replies. Or <strong>message the real Tomato</strong> from web chat when its bridge is online.</p><span class="world-link">Try simulated chat →</span></a>
+<a class="world-card" href="https://tomato.tmarhguy.com/compute.html"><span class="eyebrow">03 / COMPUTE</span><h3>Ask. Compile. Execute.</h3><p>What is (57 + 19) AND 0x3F? → 12. Envelop shows the program; Tomato runs it. Hardware first, then explicit Virtual Tomato / Cancel.</p><span class="world-link">How compute works →</span></a>
+</div><p class="world-note">The public virtual board is a browser CPU emulator with simulated peripherals. It does not send messages to the physical FPGA. <a class="text-link" href="https://tomato.tmarhguy.com/">Explore the computer</a> · <a class="text-link" href="https://tomato.tmarhguy.com/compute.html">Compute preview guide</a> · <a class="text-link" href="chat/index.html">Web chat with Virtual Tomato fallback</a></p>
+</section>
+<section class="world wrap compute-story" id="compute" aria-labelledby="compute-title">
+<p class="eyebrow">THE NEXT CONVERSATION · LOCAL PREVIEW WORKING · HARDWARE-FIRST</p>
+<div class="world-heading"><h2 id="compute-title">Envelop interprets.<br/>Tomato executes.</h2><p>Beyond hello: turn a supported expression into a small program, let Tomato run it, and see exactly where the answer came from. The app shows the original text, the canonical program, and the bytecode — never a host calculation labeled as hardware.</p></div>
+<div class="compute-example" aria-label="Verified local compute example: What is (57 + 19) AND 0x3F returns 12">
+<div><span class="eyebrow">YOU ASK</span><p>What is (57 + 19) AND 0x3F?</p><small>Also try <code>45 &amp; 19</code>, <code>and(45, 34)</code>, <code>what is 5 plus 7?</code>, or <code>/run R0=42; RETURN R0</code>.</small></div>
+<div><span class="eyebrow">ENVELOP COMPILES · BYTECODE V1</span><pre>R0 = 57 + 19
+R0 = R0 &amp; 63
+RETURN R0</pre><small>Simplified view — actual v1 uses explicit R0/R1. Shown before anything runs. Unsupported work like <code>/calc 1 / 0</code> returns a readable error — the app never invents an answer.</small></div>
+<div><span class="eyebrow">TOMATO REPLIES · LABELED TARGET</span><p class="compute-answer">12 <span>/ 0x0000000C · Virtual Tomato</span></p><small>Verified on the actual CPU RTL simulator running the OS. Hardware answers are labeled Hardware Tomato.</small></div>
+</div>
+<div class="world-heading"><div><h3>Hardware first. A clear fallback.</h3><p>The Mac preview tries its connected Tomato first for every new job. If hardware is unavailable, unsupported, or doesn’t reply in time, it asks <strong>Use Virtual Tomato / Cancel</strong>.</p><p>Cancel runs nothing virtually. A new job tries hardware again. Every result names its target. Completed virtual jobs are never queued to run later on hardware. A timeout means no confirmed result — not proof the hardware never ran.</p></div><div><h3>Try the right experience.</h3><p><strong>1 · Web chat (live now):</strong> <a class="text-link" href="chat/index.html">talk to people or hardware Tomato</a>. Offline? Run it now in in-browser Virtual Tomato — no install.</p><p><strong>2 · <a class="text-link" href="https://tomato.tmarhguy.com/virtual.html">Virtual Tomato (play now)</a>:</strong> boot the OS, open Envelop inside, connect the demo phone. Browser emulation with simulated peripherals.</p><p><strong>3 · Local compute preview (tested):</strong> Mac app + CPU RTL service on your Mac. <a class="text-link" href="https://tomato.tmarhguy.com/compute.html">Local setup and supported operations →</a></p></div></div>
+<p class="world-note">Current compute jobs: 32-bit arithmetic and bitwise ops (ADD / SUB / AND / OR / XOR / MASKADD / XORAND + private LOAD / STORE), eight private registers R0–R7, 256 private memory words, up to 32 straight-line instructions with final RETURN. Raw LUT config, multiplication / division, loops and arbitrary OS memory access are unsupported. Greeting / help / unknown chat get short bounded replies.</p>
+</section>
 <section class="origin wrap" id="origin" aria-labelledby="origin-title">
   <div class="origin-lead">
     <p class="eyebrow">00 / WHERE IT STARTED</p>
@@ -84,7 +122,7 @@
         <a class="jump solid" href="chat/index.html">Say hello to Tomato</a>
       </p>
       <p class="origin-links">
-        <a class="text-link" href="https://tomato.tmarhguy.com">Tomato paper</a>
+        <a class="text-link" href="https://tomato.tmarhguy.com">Explore the computer</a>
         <a class="text-link" href="https://github.com/tmarhguy/tomato">Tomato on GitHub</a>
         <a class="text-link" href="https://github.com/tmarhguy/envelop">Envelop source</a>
       </p>
@@ -105,7 +143,7 @@
     <div class="for-you-main">
       <p class="eyebrow">THE CHAT</p>
       <h3 id="for-you-name">Envelop web chat</h3>
-      <p id="for-you-note">Pick a name and send Tomato a hello — it answers from its own screen.</p>
+      <p id="for-you-note">Pick a name and send Tomato a hello — messages reach its screen when the bridge is online.</p>
     </div>
     <a class="download ready" id="for-you-link" href="chat/index.html">Open web chat</a>
   </div>
@@ -121,14 +159,6 @@
         <a class="text-link" href="https://github.com/tmarhguy/tomato">Tomato source</a>
         <span class="availability">Firmware integration</span>
       </article>
-      <article class="platform" data-platform="bridge">
-        <div class="platform-top"><span class="device-icon" aria-hidden="true">⌘</span><span class="platform-label">OPERATOR</span></div>
-        <h3>The bridge</h3>
-        <p>One Mac near Tomato holds the Bluetooth lease so web notes reach its screen.</p>
-        <div class="requirements">Not a download · runs where Tomato lives</div>
-        <a class="download" href="#how">How it works</a>
-        <span class="availability">Lease-held forwarding</span>
-      </article>
     </div>
   </div>
   <noscript><p>JavaScript is off. Web chat needs it; the story above does not.</p></noscript>
@@ -141,7 +171,7 @@
   </div>
   <div class="how-copy">
     <p><strong>You</strong> are whoever is online: pick a name and the green dots show who else is here. People come and go, and the list keeps up. <strong>Tomato</strong> is not another user account; it is the dorm-built computer itself, pinned at the top with a verified badge so you always know who you are talking to.</p>
-    <p>When you text Tomato, the message waits until the bridge — one Mac near Tomato holding a Bluetooth lease — forwards it to the screen. If the bridge is offline, the note waits until it returns. Leave Envelop, and your name and chats are deleted for good.</p>
+    <p>When you text Tomato, the message waits until a nearby Mac or Android bridge forwards it over Bluetooth. If the bridge is offline, the note waits until it returns. Leave Envelop, and your name and chats are deleted for good.</p>
     <div class="route" aria-label="You to Envelop to Tomato">
       <span>You</span><b aria-hidden="true">↔</b>
       <span>Envelop</span><b aria-hidden="true">↔</b>
@@ -162,23 +192,23 @@
     <details id="start-chat" open>
       <summary><span>01</span> Start chatting</summary>
       <div>
-        <p>Open <a href="chat/index.html" class="text-link">web chat</a> and enter a name. Everyone with a green dot is online right now, so open a conversation and send text. Send Tomato a hello and it answers from its screen.</p>
+        <p>Open <a href="chat/index.html" class="text-link">web chat</a> and enter a name. Everyone with a green dot is online right now, so open a conversation and send text. Send Tomato a hello; when its bridge is online, the OS receives it and can reply.</p>
         <p>Going quiet? Close the tab and you simply drop off the list. <strong>Leave Envelop</strong> in the sidebar deletes your name and chats for good.</p>
       </div>
     </details>
     <details id="install-tomato">
       <summary><span>02</span> Meet Tomato</summary>
       <div>
-        <p>In Envelop, Tomato is a contact — the computer, not a person with a phone. When you send to Tomato, the text is meant for that machine’s screen. A nearby Mac holds a Bluetooth lease so messages can cross from the Internet to the hardware.</p>
+        <p>In Envelop, Tomato is a contact — the computer, not a person with a phone. When you send to Tomato, the text is meant for that machine’s screen. A nearby Mac or Android phone holds a Bluetooth lease so messages can cross from the Internet to the hardware.</p>
         <p>Only one device holds the Bluetooth connection at a time. Local BLE chat firmware stays on Tomato; the Internet path needs firmware that speaks Envelop’s binary protocol.</p>
-        <p><a href="https://github.com/tmarhguy/tomato" class="text-link">Tomato on GitHub</a> · <a href="https://tomato.tmarhguy.com" class="text-link">Read the paper</a></p>
+        <p><a href="https://github.com/tmarhguy/tomato" class="text-link">Tomato on GitHub</a> · <a href="https://tomato.tmarhguy.com" class="text-link">Explore Tomato</a></p>
       </div>
     </details>
     <details id="network">
       <summary><span>03</span> The test network</summary>
       <div>
         <p>Web chat connects to the Envelop test network automatically. You only enter a name.</p>
-        <p>Native clients live in the repo source (Mac holds the bridge; Android and Windows are internet-only) but are not distributed — the website is the app.</p>
+        <p>The website is the general chat app. The Mac operator build and Tyrone’s private Android bridge are maintained beside Tomato, not offered as public downloads.</p>
       </div>
     </details>
   </div>
@@ -187,7 +217,7 @@
 
 <footer class="wrap">
   <a class="brand" href="./"><img src="favicon.svg" width="26" height="26" alt=""><span class="brand-name">Envelop</span></a>
-  <p class="disclaimer">Not a commercial product — an exploration of a stack around Tomato, a computer built to learn and to love.</p>
+  <p class="disclaimer">Not a commercial product — an exploration of a stack around <a class="text-link" href="https://tomato.tmarhguy.com/">Tomato</a>, a computer built to learn and to love. <a class="text-link" href="https://tomato.tmarhguy.com/virtual.html">Play Virtual Tomato</a> · <a class="text-link" href="https://tomato.tmarhguy.com/compute.html">Compute preview</a> · <a class="text-link" href="chat/index.html">Web chat</a></p>
   <a href="https://github.com/tmarhguy/envelop">Source on GitHub</a>
 </footer>
 </body>
