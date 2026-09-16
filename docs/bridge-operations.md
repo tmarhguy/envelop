@@ -17,6 +17,14 @@ one 30-second authenticated lease per device. Both constraints matter: a BLE
 connection without a valid lease must not forward cloud traffic, and a lease
 must not be claimed before Tomato identity verification.
 
+## BLE transport
+
+Both maintained bridges use the Nordic UART service and the binary
+[BLE adapter contract](../protocol/BLE_PROTOCOL.md). They subscribe to TX
+notifications and write ordered frame chunks of at most 20 bytes to RX without
+response. Flow control is transport capacity, not device acknowledgment.
+Partial parser state and pending writes must be discarded on disconnect.
+
 ## Connect
 
 1. Confirm the bridge account has a Tomato grant. The private owner receives
