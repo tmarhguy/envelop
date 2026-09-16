@@ -17,9 +17,8 @@ xcuserdata/
 local.properties
 *.apk
 *.aab
-!website/downloads/*.apk
-!website/downloads/*.zip
-!website/downloads/*.ipa
+# Existing tracked historical packages may remain locally, but new native
+# packages must not be added to the public website or Pages artifact.
 
 # Node
 node_modules/
@@ -34,11 +33,4 @@ log/.obsidian/
 *.swp
 *~
 
-# Windows
-bin/
-obj/
-*.user
-*.suo
 .vscode/
-windows/.publish/
-apple/.build/
