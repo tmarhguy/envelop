@@ -1,3 +1,7 @@
+> **Historical, noncanonical log (2026-09-15).** This records the project at
+> the time and includes superseded presence/platform claims. See
+> [`docs/status.md`](../docs/status.md) for current facts.
+
 Whenever I am working on a main proejct, I choose to spend less time turning the other problems into another main proejct. With that, I have observed that the main issue that prompted native apps was permission to access bluetooth.
 
 Without deep thoughts, I drafted to build for all popular tools, but that is essentially inventing the universe just to bake bread! This is why I love coming back to ideas and solving them extensively (In other words, dedicating all 8 cores of my brain to tackle the issue lol)
