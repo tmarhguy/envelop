@@ -43,6 +43,22 @@ operations](../docs/bridge-operations.md).
 
 ## Build
 
+Install JDK 17 and ensure `JAVA_HOME` selects it. Gradle 8.11.1 with the current
+Android plugin is not supported by this project on Java 25. On macOS with a
+registered JDK 17:
+
+```sh
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+```
+
+Run focused unit tests with:
+
+```sh
+./gradlew :core:testDebugUnitTest :bridge:testDebugUnitTest --no-daemon
+```
+
+Package the private app with:
+
 ```sh
 ./package-apk.sh
 ```
