@@ -3,13 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Envelop web chat: talk to whoever is online, and send a hello that a dorm-built computer answers.">
+<meta name="description" content="Envelop web chat for people and Tomato, with queued hardware delivery and an explicitly labeled Virtual Tomato preview.">
 <meta name="theme-color" content="#f7f5ef">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://tmarhguy.github.io/envelop/chat/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Envelop">
+<meta property="og:title" content="Chat — Envelop">
+<meta property="og:description" content="Browser chat for people and Tomato, with queued hardware delivery and an explicitly labeled virtual preview.">
+<meta property="og:url" content="https://tmarhguy.github.io/envelop/chat/">
+<meta property="og:image" content="https://tmarhguy.github.io/envelop/media/tomato-demo-os-poster.jpg">
+<meta property="og:image:alt" content="Tomato OS running on the FPGA">
+<meta name="twitter:card" content="summary_large_image">
 <title>Chat — Envelop</title>
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../style.css">
-<link rel="stylesheet" href="chat.css">
-<script src="chat.js" defer></script>
+<link rel="stylesheet" href="../style.css?v=20260916">
+<link rel="stylesheet" href="chat.css?v=20260916-voices">
+<script src="chat.js?v=20260916-voices" defer></script>
 </head>
 <body class="chat-page">
 <a class="skip" href="#chat">Skip to chat</a>
@@ -19,23 +29,25 @@
     <span class="brand-name">Envelop</span>
   </a>
   <nav class="desk-nav" aria-label="Main navigation">
-    <a href="https://tomato.tmarhguy.com/virtual.html">Virtual Tomato</a>
-    <a href="../#compute">Compute</a>
     <a href="./" aria-current="page">Chat</a>
-    <a href="../#origin">Origin</a>
-    <a href="../#how">How it works</a>
+    <a href="../#path">How it works</a>
+    <a href="../#virtual">Virtual Tomato</a>
+    <a href="../status.html">Status</a>
+    <a href="../privacy.html">Privacy</a>
   </nav>
   <details class="site-menu">
     <summary aria-label="Open menu"><span></span><span></span><span></span></summary>
     <nav aria-label="All pages">
       <a href="./" aria-current="page">Chat</a>
       <a href="../">Home</a>
-      <a href="https://tomato.tmarhguy.com/virtual.html">Play Tomato OS</a>
+      <a href="../#path">How it works</a>
+      <a href="../#physical">Physical Tomato</a>
+      <a href="../#virtual">Virtual Tomato</a>
       <a href="../#compute">Compute</a>
-      <a href="https://tomato.tmarhguy.com/compute.html">Tomato compute</a>
-      <a href="../#origin">Origin</a>
-      <a href="../#how">How it works</a>
-      <a href="https://tomato.tmarhguy.com/">Tomato</a>
+      <a href="../status.html">Status</a>
+      <a href="../platforms.html">Platforms</a>
+      <a href="../privacy.html">Privacy</a>
+      <a href="https://tomato.tmarhguy.com/">Explore Tomato</a>
     </nav>
   </details>
 </header>
@@ -58,8 +70,8 @@
       <details class="welcome-more">
         <summary>How it works</summary>
         <div>
-          <p>Enter a name and you're visible while you're here. Text whoever is online, and send Tomato a hello whenever its bridge is up — a real computer answers from its screen. If hardware Tomato is offline, notes queue automatically and deliver when its bridge is back — or preview any draft in Virtual Tomato from the chat box (labeled virtual, never sent to hardware). Leave, and your chats are gone for good.</p>
-          <p>Try compute: <code>What is (57 + 19) AND 0x3F?</code> → Tomato replies <code>12 / 0x0000000C</code>. <a href="https://tomato.tmarhguy.com/compute.html">How compute works</a>. An online authenticated lease uses a durable physical-hardware job; otherwise the result is clearly labeled Virtual Tomato. Ambiguous hardware jobs are never replayed virtually.</p>
+          <p>Enter a name and you're visible while you're here. Text whoever is online, and send Tomato a hello whenever its verified bridge is up. If physical Tomato is offline, notes queue automatically and deliver when its bridge is back—or preview any draft in Virtual Tomato from the chat box (labeled virtual, never sent to hardware). “Leave Envelop” requests deletion of your profile and related chats.</p>
+          <p>Try compute: <code>What is (57 + 19) AND 0x3F?</code> → Tomato replies <code>12 / 0x0000000C</code>. <a href="../#compute">How compute works</a>. An online authenticated lease uses a durable physical-hardware job; otherwise the result is clearly labeled Virtual Tomato. Ambiguous hardware jobs are never replayed virtually.</p>
         </div>
       </details>
     </div>
@@ -87,7 +99,14 @@
             <div class="chat-peer" id="chat-peer"></div>
           </div>
           <div class="chat-notice" id="chat-notice" hidden></div>
-          <div class="chat-messages" id="chat-messages" aria-live="polite"></div>
+          <div class="chat-log" id="chat-log">
+            <div class="chat-messages" id="chat-messages" aria-live="polite"></div>
+            <div class="chat-typing" id="chat-typing" hidden>
+              <div class="chat-msg them typing" role="status" aria-live="polite" aria-label="Tomato is typing">
+                <span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              </div>
+            </div>
+          </div>
           <div class="vt-banner" id="vt-banner" hidden>
             <span>Hardware offline — notes queue automatically. Preview still runs in Virtual Tomato.</span>
           </div>
@@ -106,8 +125,8 @@
 
 <footer class="wrap">
   <a class="brand" href="../"><img src="../favicon.svg" width="26" height="26" alt=""><span class="brand-name">Envelop</span></a>
-  <p class="disclaimer">Not a commercial product — an exploration of a stack around <a href="https://tomato.tmarhguy.com/">Tomato</a>. <a href="https://tomato.tmarhguy.com/virtual.html">Virtual Tomato</a> · <a href="https://tomato.tmarhguy.com/compute.html">Compute preview</a> · <a href="../#compute">Envelop compute</a></p>
-  <a href="https://github.com/tmarhguy/envelop">Source on GitHub</a>
+  <p class="disclaimer">An experimental messenger around <a href="https://tomato.tmarhguy.com/">Tomato</a>. <a href="../status.html">Status</a> · <a href="../platforms.html">Platforms</a> · <a href="../privacy.html">Privacy</a> · <a href="../#compute">Compute</a></p>
+  <a href="https://tomato.tmarhguy.com/">Explore Tomato</a>
 </footer>
 </body>
 </html>

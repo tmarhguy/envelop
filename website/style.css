@@ -26,6 +26,17 @@ summary:focus-visible {
   outline-offset: 4px;
 }
 a:hover { color: var(--red); }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 button, summary, .try-chip, .jump, .download {
   touch-action: manipulation;
@@ -105,6 +116,7 @@ nav {
 }
 .site-menu summary::-webkit-details-marker,
 .site-menu summary::marker { display: none; content: none; }
+.site-menu summary::after { content: none; display: none; }
 .site-menu summary span {
   display: block;
   width: 18px;
@@ -363,6 +375,7 @@ h3 .verified {
 
 /* —— Downloads —— */
 .downloads { scroll-margin-top: 100px; }
+.journey-section { padding-block: 64px; }
 .section-head {
   display: flex;
   justify-content: space-between;
@@ -589,6 +602,77 @@ h3 {
 }
 .route b { font-weight: 400; color: #aaa; }
 .red { color: var(--red); }
+.route-long { font-size: 11px; }
+
+/* —— Factual subpages —— */
+.info-hero {
+  padding-block: 64px 40px;
+  max-width: 850px;
+}
+.info-hero h1 { max-width: 13ch; }
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding-bottom: 64px;
+}
+.info-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--cream);
+  padding: 24px;
+}
+.info-card.wide { grid-column: 1 / -1; }
+.info-card h2 { font-size: 25px; margin-bottom: 14px; }
+.info-card h3 { font-size: 18px; }
+.info-card p,
+.info-card li {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.evidence-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin: 30px 0 20px;
+}
+.evidence-shot,
+.evidence-card {
+  margin: 0;
+}
+.evidence-shot img,
+.evidence-card img {
+  width: 100%;
+  height: auto;
+  max-height: 620px;
+  object-fit: contain;
+  object-position: top center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ece9e0;
+}
+.evidence-shot figcaption,
+.evidence-card figcaption {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.evidence-card img { max-height: 520px; }
+.info-card ul { padding-left: 20px; }
+.status-label {
+  display: inline-block;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 9px;
+  margin-bottom: 12px;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
 
 /* —— Setup —— */
 .setup {
@@ -752,6 +836,13 @@ footer .disclaimer {
   }
   .origin-copy p { font-size: 15px; }
   .origin-demo { max-width: min(260px, 70vw); }
+  .journey-section { padding-block: 48px; }
+  .info-hero { padding-block: 40px 28px; }
+  .info-grid { grid-template-columns: 1fr; padding-bottom: 44px; }
+  .info-card.wide { grid-column: auto; }
+  .evidence-pair { grid-template-columns: 1fr; gap: 20px; }
+  .evidence-shot img,
+  .evidence-card img { max-height: 72dvh; }
 
   .section-head {
     display: block;

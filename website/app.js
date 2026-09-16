@@ -8,9 +8,16 @@ function revealHash() {
 if(typeof window!=='undefined'){
  window.addEventListener('hashchange',revealHash);revealHash();
  for (const menu of document.querySelectorAll('.site-menu')) {
+  const summary = menu.querySelector('summary');
+  const syncMenu = () => {
+   summary.setAttribute('aria-expanded', String(menu.open));
+   summary.setAttribute('aria-label', menu.open ? 'Close menu' : 'Open menu');
+  };
+  menu.addEventListener('toggle', syncMenu);
+  syncMenu();
   menu.addEventListener('click', event => { if (event.target.closest('a')) menu.open = false; });
   document.addEventListener('click', event => { if (!menu.contains(event.target)) menu.open = false; });
-  menu.addEventListener('keydown', event => { if (event.key === 'Escape') { menu.open = false; menu.querySelector('summary').focus(); } });
+  menu.addEventListener('keydown', event => { if (event.key === 'Escape') { menu.open = false; summary.focus(); } });
  }
  // Autoplay Tomato OS demo; pause if the user prefers reduced motion.
  const demo=document.querySelector('.origin-demo video');
