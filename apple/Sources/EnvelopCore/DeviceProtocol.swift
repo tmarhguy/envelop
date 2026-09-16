@@ -4,6 +4,7 @@ import Foundation
 public enum DeviceFrameType: UInt8, CaseIterable {
     case hello = 1, helloAck, contactReset, contactUpsert, openChat, chatHistory
     case chatMessage, sendMessage, messageAck, status, ping, pong
+    case computeJob = 32, computeResult = 33
 }
 
 public enum DeviceProtocolError: Error, Equatable {
@@ -85,6 +86,18 @@ public enum DeviceBridgeState: String, Equatable {
     case idle, scanning, bleConnected, gattReady, tomatoVerified, leaseAcquired, syncing, online, bridging
     case internetLost, leaseLost, disconnected
     public var isInternetReachable: Bool { self == .online || self == .bridging }
+}
+
+/// Client-side replay fence for durable compute_jobs.
+public enum DurableComputeResolution: Equatable {
+    case physical, virtualSafe, unknown
+    public init(status: String) {
+        switch status {
+        case "completed": self = .physical
+        case "cancelled", "failed": self = .virtualSafe
+        default: self = .unknown
+        }
+    }
 }
 
 /// Routes belong to one physical connection. Never reuse a route inside that session.

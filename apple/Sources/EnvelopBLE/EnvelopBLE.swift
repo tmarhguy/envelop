@@ -2,20 +2,17 @@ import Foundation
 import CoreBluetooth
 import EnvelopCore
 
-/// Thin CoreBluetooth central for the frozen wire contract v1.
-/// Same file compiles on iOS and macOS. No dependencies.
+/// Thin CoreBluetooth central for the binary device protocol.
+/// macOS operator transport. No dependencies.
 @MainActor
 public final class EnvelopBLE: NSObject, ObservableObject {
     @Published public private(set) var link: EnvelopLinkState = .idle {
         didSet { onLink?(link) }
     }
     @Published public private(set) var peerName: String = "Envelop"
-    @Published public private(set) var messages: [EnvelopMessage] = []
 
-    /// Called for each complete received line (main thread).
-    public var onLine: ((String) -> Void)?
+    /// Called with each raw notification fragment on the main thread.
     public var onBytes: ((Data) -> Void)?
-    private var binaryMode = false
     /// Called on every link change (main thread). Used by the net bridge.
     public var onLink: ((EnvelopLinkState) -> Void)?
 
@@ -23,7 +20,6 @@ public final class EnvelopBLE: NSObject, ObservableObject {
     private var peripheral: CBPeripheral?
     private var rxChar: CBCharacteristic?
     private var txChar: CBCharacteristic?
-    private let assembler = EnvelopLineAssembler()
     private var writeQueue = [Data]()
     private var writing = false
     private var shouldScan = false
@@ -37,15 +33,9 @@ public final class EnvelopBLE: NSObject, ObservableObject {
         central = CBCentralManager(delegate: self, queue: nil)
     }
 
-    public convenience init(binaryMode: Bool) {
-        self.init()
-        self.binaryMode = binaryMode
-    }
-
-    /// Binary frames are never passed through the legacy ASCII filter.
     @discardableResult
     public func sendFrame(_ frame: DeviceFrame) -> Bool {
-        guard binaryMode, link.isReady, writeQueue.count < 256 else { return false }
+        guard link.isReady, writeQueue.count < 256 else { return false }
         writeQueue.append(contentsOf: envelopChunks(frame.encoded))
         pumpWrites()
         return true
@@ -66,48 +56,11 @@ public final class EnvelopBLE: NSObject, ObservableObject {
     }
 
     public func retry() {
-        assembler.reset()
         writeQueue.removeAll()
         writing = false
         if let p = peripheral { central.cancelPeripheralConnection(p) }
         peripheral = nil; rxChar = nil; txChar = nil
         start()
-    }
-
-    /// Queue one chat message. Returns false if not Ready or empty.
-    /// Queued locally — never a claim of remote delivery (no firmware ACK).
-    @discardableResult
-    public func send(_ text: String) -> Bool {
-        guard let data = envelopEncode(text), link.isReady else { return false }
-        messages.append(EnvelopMessage(text: displayCopy(text), isMe: true))
-        writeQueue.append(contentsOf: envelopChunks(data))
-        pumpWrites()
-        return true
-    }
-
-    /// Bridge path: same wire bytes, no local bubble (relay traffic must
-    /// not pollute the direct transcript).
-    @discardableResult
-    public func sendRaw(_ text: String) -> Bool {
-        guard let data = envelopEncode(text), link.isReady else { return false }
-        writeQueue.append(contentsOf: envelopChunks(data))
-        pumpWrites()
-        return true
-    }
-
-    public func clearChat() { messages.removeAll() }
-
-    func receiveLines(_ lines: [String]) {
-        for l in lines {
-            messages.append(EnvelopMessage(text: l, isMe: false))
-            onLine?(l)
-        }
-    }
-
-    private func displayCopy(_ text: String) -> String {
-        // Mirror the wire filter so the bubble matches what Tomato receives.
-        guard let d = envelopEncode(text) else { return "" }
-        return String(bytes: d.dropLast(), encoding: .ascii) ?? ""
     }
 
     // MARK: - Scan / connect
@@ -182,7 +135,6 @@ extension EnvelopBLE: CBCentralManagerDelegate {
         Task { @MainActor in
             guard self.peripheral === peripheral else { return }
             self.peripheral = nil; self.rxChar = nil; self.txChar = nil
-            self.assembler.reset()
             self.writeQueue.removeAll()
             self.writing = false
             if self.shouldScan {
@@ -272,8 +224,7 @@ extension EnvelopBLE: CBPeripheralDelegate {
         Task { @MainActor in
             guard error == nil, characteristic.uuid == Self.tx,
                   let data = characteristic.value, !data.isEmpty else { return }
-            if self.binaryMode { self.onBytes?(data) }
-            else { self.receiveLines(self.assembler.feed(data)) }
+            self.onBytes?(data)
         }
     }
 
