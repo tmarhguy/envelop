@@ -3,7 +3,8 @@ set -eu
 cd "$(dirname "$0")"
 ROOT="$(cd .. && pwd)"
 VERSION="${ENVELOP_VERSION:-0.2.0}"
-OUT_DIR="$ROOT/website/downloads"
+OUT_DIR="${ENVELOP_APPLE_OUT:-$ROOT/apple/private-builds}"
+APP_DIR="$OUT_DIR/Envelop.app"
 ZIP_NAME="envelop-mac-${VERSION}.zip"
 
 if [ -f "$ROOT/.env" ]; then
@@ -14,13 +15,15 @@ if [ -f "$ROOT/.env" ]; then
 fi
 
 swift build --disable-sandbox
-mkdir -p Envelop.app/Contents/MacOS
-cp .build/debug/Envelop Envelop.app/Contents/MacOS/Envelop
-cp mac/Info.plist Envelop.app/Contents/Info.plist
-# Optional public client configuration; never supply a service-role key.
-python3 - <<'PY'
+rm -rf "$APP_DIR"
+mkdir -p "$APP_DIR/Contents/MacOS"
+cp .build/debug/Envelop "$APP_DIR/Contents/MacOS/Envelop"
+cp mac/Info.plist "$APP_DIR/Contents/Info.plist"
+# Optional client configuration; never supply a service-role key.
+python3 - "$APP_DIR/Contents/Info.plist" <<'PY'
 import os, plistlib
-path = 'Envelop.app/Contents/Info.plist'
+import sys
+path = sys.argv[1]
 with open(path, 'rb') as f:
     info = plistlib.load(f)
 for env, key in [('ENVELOP_SUPABASE_URL', 'EnvelopSupabaseURL'), ('ENVELOP_SUPABASE_KEY', 'EnvelopSupabaseKey')]:
@@ -32,5 +35,5 @@ PY
 
 mkdir -p "$OUT_DIR"
 rm -f "$OUT_DIR/$ZIP_NAME"
-ditto -c -k --sequesterRsrc --keepParent Envelop.app "$OUT_DIR/$ZIP_NAME"
-printf 'Built apple/Envelop.app and %s (%s bytes)\n' "$OUT_DIR/$ZIP_NAME" "$(wc -c < "$OUT_DIR/$ZIP_NAME" | tr -d ' ')"
+ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "$OUT_DIR/$ZIP_NAME"
+printf 'Built private app %s and archive %s (%s bytes)\n' "$APP_DIR" "$OUT_DIR/$ZIP_NAME" "$(wc -c < "$OUT_DIR/$ZIP_NAME" | tr -d ' ')"

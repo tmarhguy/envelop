@@ -7,18 +7,29 @@
 apple/.build/
 apple/.swiftpm/
 apple/Envelop.app/
+apple/private-builds/
 DerivedData/
 *.xcuserstate
 xcuserdata/
+*.app
+*.dmg
+*.ipa
+*.pkg
 
 # Android / Gradle
 .gradle/
 **/build/
+android/private-builds/
 local.properties
 *.apk
 *.aab
-# Existing tracked historical packages may remain locally, but new native
-# packages must not be added to the public website or Pages artifact.
+
+# Private/generated artifacts
+backups/
+.public-site/
+website/downloads/
+*.msix
+*.zip
 
 # Node
 node_modules/

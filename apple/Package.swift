@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Envelop",
-    platforms: [.iOS(.v17), .macOS(.v14)],
+    platforms: [.macOS(.v14)],
     products: [
         .executable(name: "Envelop", targets: ["EnvelopApp"]),
         .library(name: "EnvelopCore", targets: ["EnvelopCore"]),
