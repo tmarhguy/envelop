@@ -12,14 +12,17 @@
 <meta property="og:title" content="Chat — Envelop">
 <meta property="og:description" content="Browser chat for people and Tomato, with queued hardware delivery and an explicitly labeled virtual preview.">
 <meta property="og:url" content="https://tmarhguy.github.io/envelop/chat/">
-<meta property="og:image" content="https://tmarhguy.github.io/envelop/media/tomato-demo-os-poster.jpg">
-<meta property="og:image:alt" content="Tomato OS running on the FPGA">
+<meta property="og:image" content="https://tmarhguy.github.io/envelop/media/envelop-social-card.webp">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Envelop browser conversations with a provenance-labeled Tomato reply">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://tmarhguy.github.io/envelop/media/envelop-social-card.webp">
 <title>Chat — Envelop</title>
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../style.css?v=20260916">
-<link rel="stylesheet" href="chat.css?v=20260916-voices">
-<script src="chat.js?v=20260916-voices" defer></script>
+<link rel="stylesheet" href="chat.css?v=20260916-signoff">
+<script src="chat.js?v=20260916-signoff" defer></script>
 </head>
 <body class="chat-page">
 <a class="skip" href="#chat">Skip to chat</a>
@@ -98,7 +101,7 @@
             <button type="button" class="chat-back" id="chat-back" aria-label="Back to conversations">←</button>
             <div class="chat-peer" id="chat-peer"></div>
           </div>
-          <div class="chat-notice" id="chat-notice" hidden></div>
+          <div class="chat-notice" id="chat-notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
           <div class="chat-log" id="chat-log">
             <div class="chat-messages" id="chat-messages" aria-live="polite"></div>
             <div class="chat-typing" id="chat-typing" hidden>
@@ -118,7 +121,7 @@
         </div>
       </section>
     </div>
-    <div class="chat-error" id="chat-error" hidden></div>
+    <div class="chat-error" id="chat-error" role="alert" aria-atomic="true" hidden></div>
   </div>
   <noscript><p>Web chat needs JavaScript. The story behind it is on the <a href="../">main page</a>.</p></noscript>
 </main>

@@ -3,28 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Envelop is a browser messenger for people and Tomato, with queued hardware delivery and an explicitly labeled Virtual Tomato fallback.">
+<meta name="description" content="Envelop lets you message people—and text Tomato, a real custom computer running its own Envelop client in Tomato OS.">
 <meta name="theme-color" content="#f7f5ef">
 <meta name="robots" content="index,follow">
 <link rel="canonical" href="https://tmarhguy.github.io/envelop/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Envelop">
-<meta property="og:title" content="Envelop — Message people. And Tomato.">
-<meta property="og:description" content="A browser messenger with a path to a real Tomato computer and an explicitly labeled virtual fallback.">
+<meta property="og:title" content="Envelop — Text people. Text a computer.">
+<meta property="og:description" content="A browser messenger where Tomato, a real custom computer running its own OS, can be one of your contacts.">
 <meta property="og:url" content="https://tmarhguy.github.io/envelop/">
-<meta property="og:image" content="https://tmarhguy.github.io/envelop/media/tomato-demo-os-poster.jpg">
-<meta property="og:image:alt" content="Tomato OS running on the FPGA">
+<meta property="og:image" content="https://tmarhguy.github.io/envelop/media/envelop-social-card.webp">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Envelop conversation list and a provenance-labeled Virtual Tomato reply beside the words Text people. Text a computer.">
 <meta name="twitter:card" content="summary_large_image">
-<title>Envelop — Message people. And Tomato.</title>
+<meta name="twitter:image" content="https://tmarhguy.github.io/envelop/media/envelop-social-card.webp">
+<title>Envelop — Text people. Text a computer.</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css?v=20260916">
-<script src="app.js" defer></script>
-<script src="hello.js" defer></script>
+<script src="app.js?v=3e6c3316" defer></script>
+<script src="hello.js?v=215d771d" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="wrap">
-  <a class="brand" href="./" aria-label="Envelop home"><img src="favicon.svg" width="34" height="34" alt=""><span class="brand-name">Envelop</span></a>
+  <a class="brand" href="./" aria-label="Envelop home" aria-current="page"><img src="favicon.svg" width="34" height="34" alt=""><span class="brand-name">Envelop</span></a>
   <nav class="desk-nav" aria-label="Main navigation">
     <a href="chat/index.html">Chat</a><a href="#path">How it works</a><a href="#physical">Physical Tomato</a><a href="#virtual">Virtual Tomato</a><a href="status.html">Status</a>
   </nav>
@@ -39,10 +42,10 @@
 <main id="main">
 <section class="hero wrap" aria-labelledby="title">
   <div class="hero-copy">
-    <p class="eyebrow"><span class="dot"></span> A MESSENGER FOR PEOPLE — AND A COMPUTER</p>
-    <h1 id="title">Message people.<br>And Tomato.</h1>
-    <p class="intro">Envelop is a browser messenger with one unusual contact: <a class="inline-link" href="https://tomato.tmarhguy.com/">Tomato</a>, a 32-bit computer built in a dorm. Messages wait safely when its nearby bridge is away.</p>
-    <div class="hero-actions"><a class="jump solid" href="chat/index.html">Open web chat</a><a class="jump quiet" href="#path">Follow the real path</a></div>
+    <p class="eyebrow"><span class="dot"></span> THE MESSENGER WHERE A COMPUTER WRITES BACK</p>
+    <h1 id="title">Text people.<br>Text a computer.</h1>
+    <p class="intro">Tomato is a real 32-bit computer with Envelop running inside its operating system. Add it like a contact, send from your browser, and see whether physical or Virtual Tomato answered.</p>
+    <div class="hero-actions"><a class="jump solid" href="chat/index.html">Start a conversation</a><a class="jump quiet" href="#path">See how Tomato receives it</a></div>
     <form class="hello-form" id="hello-form">
       <label class="sr-only" for="hello-text">Message Tomato</label>
       <input id="hello-text" type="text" maxlength="256" placeholder="Say hello to Tomato…" autocomplete="off">
@@ -59,7 +62,7 @@
 </section>
 
 <section class="how wrap" id="path" aria-labelledby="path-title">
-  <div><p class="eyebrow">01 / THE REAL TOMATO PATH</p><h2 id="path-title">A message crosses<br>the whole stack.</h2></div>
+  <div><p class="eyebrow">01 / SEND TO A COMPUTER</p><h2 id="path-title">From your browser<br>into Tomato OS.</h2></div>
   <div class="how-copy">
     <p><strong>You send in the Envelop web app.</strong> The backend keeps the message queued until a nearby verified bridge can carry it to Envelop inside Tomato OS. Tomato’s CPU receives it and its reply returns with its origin labeled.</p>
     <p>The bridge may be the macOS operator app or the private Android bridge. “Verified Tomato” means the bridge received the exact <code>ENVELOP/1</code> protocol identity; it is not a broader security-attestation claim.</p>
@@ -81,7 +84,7 @@
   <div class="origin-lead"><p class="eyebrow">03 / PHYSICAL TOMATO</p><h2 id="physical-title">The contact is<br>a real computer.</h2></div>
   <div class="origin-body">
     <figure class="origin-demo">
-      <video aria-label="HDMI capture of Tomato OS running on the FPGA" muted loop playsinline webkit-playsinline poster="media/tomato-demo-os-poster.jpg" preload="metadata" controls><source src="media/tomato-demo-os.mp4" type="video/mp4"></video>
+      <video aria-label="HDMI capture of Tomato OS running on the FPGA" muted loop playsinline webkit-playsinline poster="media/tomato-demo-os-poster.jpg" preload="none" controls><source data-src="media/tomato-demo-os.mp4" type="video/mp4"></video>
       <figcaption>Physical Tomato · FPGA HDMI capture. This recording is hardware evidence, not a current online indicator.</figcaption>
     </figure>
     <div class="origin-copy">
