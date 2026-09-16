@@ -1,6 +1,7 @@
 #!/bin/sh
 # Live Supabase smoke test for Envelop. Reads ../.env (never commit it).
-# Creates ONE anonymous user (required for any auth check); writes no rows.
+# Creates one anonymous Auth user. App RPC probes are chosen to fail before
+# writing application rows; remove the test user from Auth after the run.
 # Usage: sh backend/smoke-live.sh
 set -eu
 cd "$(dirname "$0")/.."
