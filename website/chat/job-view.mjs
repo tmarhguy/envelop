@@ -1,4 +1,4 @@
-import {EVENTS, VOICES, selectPersonality} from './personality.mjs?v=20260916-signoff';
+import {EVENTS, VOICES, selectPersonality} from './personality.mjs?v=20260916-bounded-division';
 
 export const PHASES = Object.freeze({
   COMPILING: 'compiling',
@@ -41,11 +41,21 @@ export function personalityOutcome(event, key, details = {}) {
     event,
     text: selected.text,
     technical: technicalLine(event, details),
+    guidance: details.guidance || null,
   });
 }
 
 export function compileOutcome(error, key) {
   if (!error || !compileEvents.has(error.code)) return null;
+  if (error.code === EVENTS.UNKNOWN_TOKEN && error.details?.token) {
+    return Object.freeze({
+      voice: VOICES.ENVELOP,
+      event: error.code,
+      text: `I can’t help with “${error.details.token}” yet.`,
+      technical: null,
+      guidance: error.details.guidance || null,
+    });
+  }
   return personalityOutcome(error.code, key, error.details);
 }
 

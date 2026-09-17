@@ -18,8 +18,31 @@ const TRAILING_FILLER=/\s+(?:(?:on|for|from)\s+tomato|for me|thank you|thanks|pl
 const OF_NAMES='plus|minus|and|or|xor|nand|nor|xnor|not|sum|difference|add|subtract|product|times';
 const OF_ALIAS={plus:'plus',minus:'minus',and:'and',or:'or',xor:'xor',nand:'nand',nor:'nor',xnor:'xnor',not:'not',sum:'plus',difference:'minus',add:'plus',subtract:'minus',product:'*',times:'*'};
 const OF_HEAD=new RegExp(String.raw`\b(?:the\s+)?(?:bitwise\s+)?(${OF_NAMES})\s+(?:of|between)\s+`,'gi');
-const OF_TERM=/^(?:plus|minus|or|xor|nand|nor|xnor|sum|difference)\b/i;
-const OP_VOCAB=['plus','minus','and','or','xor','nand','nor','xnor','not','sum','add'];
+const OF_TERM=/^(?:plus|minus|or|xor|nand|nor|xnor|sum|difference|product|times)\b/i;
+const OP_VOCAB=['plus','minus','and','or','xor','nand','nor','xnor','not','sum','add','product','times'];
+const FN_NAMES='plus|minus|and|or|xor|nand|nor|xnor|not|product|times|andn|orn|maskadd|xorand|andadd|oradd|xoradd';
+const WORD_OPERATION=new RegExp(String.raw`\b(?:${OF_NAMES}|andn|orn|maskadd|xorand|andadd|oradd|xoradd)\b`,'i');
+const MEANING_START=new RegExp(String.raw`\b(?:${OF_NAMES})\s+(?:of|between)\b|\b(?:${FN_NAMES})\s*(?=\()|-?(?:0x[\da-f]+|0b[01]+|\d+)|\bR[0-9]+\b|[~(]`,'gi');
+const MEANING_END=/-?(?:0x[\da-f]+|0b[01]+|\d+)|\bR[0-9]+\b|\)/gi;
+function usefulEnvelope(source){
+ const starts=[...source.matchAll(new RegExp(MEANING_START.source,'gi'))];
+ const ends=[...source.matchAll(new RegExp(MEANING_END.source,'gi'))];
+ if(!starts.length||!ends.length)return source;
+ const start=starts[0].index;
+ let end=ends[ends.length-1].index+ends[ends.length-1][0].length;
+ if(start===0&&end===source.length)return source;
+ const semanticPrefix=source.slice(0,start).match(/\b([A-Za-z]+)\s+(?:of|between)\s*$/i);
+ if(semanticPrefix&&OP_VOCAB.some(operation=>editDist(semanticPrefix[1].toLowerCase(),operation)===1))return source;
+ let candidate=source.slice(start,end);
+ const tail=source.slice(end);
+ const candidateHasSymbol=/[+*/\-&|^~]/.test(candidate);
+ const dangling=tail.match(/^\s*([+*/\-&|^~])/)
+  ||(!candidateHasSymbol&&tail.match(new RegExp(String.raw`^\s*((?:${OF_NAMES})\b)`,'i')));
+ if(dangling)end+=dangling.index+dangling[0].length;
+ candidate=source.slice(start,end).trim();
+ if(!/[+*/\-&|^~]/.test(candidate)&&!WORD_OPERATION.test(candidate))return source;
+ return candidate||source;
+}
 function stripShells(expression){
  expression=expression.replace(/\bwhat['’]s\b/gi,'what is').replace(/\bwhats\b/gi,'what is');
  for(let k=0;k<6;k++){const short=expression.replace(LEADING_SHELL,'');if(short===expression)break;expression=short;}
@@ -95,34 +118,36 @@ function unknownHint(prepared,word){
  if(w==='of'){
   const m=prepared.match(/\b(xnor|xor|nand|nor|plus|minus|difference|and|or|not|sum)\b/i);
   const op=OF_ALIAS[(m?m[1]:'xor').toLowerCase()]||'xor';
-  return ` Did you mean ${op} of a and b, or ${op}(a, b)?`;
+  return ` Supported forms: ${op} of a and b, or ${op}(a, b).`;
  }
  const hits=OP_VOCAB.filter(o=>editDist(w,o)===1);
- if(hits.length===1)return ` Did you mean ${hits[0]}?`;
+ if(hits.length===1)return ` Closest supported operator: ${hits[0]}.`;
  const words=prepared.split(/\s+/);
  for(let i=1;i<words.length;i++){
   const prefix=words.slice(0,i).join(' ');
   if(/\d/.test(prefix))break;
   const rest=words.slice(i).join(' ');
-  try{if(compile(rest))return ` Did you mean ${rest}?`;}catch{continue;}
+  const candidate=usefulEnvelope(stripShells(rest));
+  try{if(compile(candidate))return ` Recognized calculation: ${candidate}.`;}catch{continue;}
  }
  return '';
 }
 function unknownError(word,prepared){
  const hint=unknownHint(prepared,word);
- fail('UNKNOWN_TOKEN',`Unknown word '${word}'.${hint||" Try numbers, operators like + - & | ^ ~, or /help."}`,{token:word});
+ const guidance=(hint||'Try numbers, operators like + - * / & | ^ ~, or /help.').trim();
+ fail('UNKNOWN_TOKEN',`Unknown word '${word}'. ${guidance}`,{token:word,guidance});
 }
 export function compile(source) {
  if(typeof source!=='string')fail('MALFORMED_EXPRESSION','Use at most 2048 characters.',{reason:'invalid-source-type'});
  if(source.length>2048)fail('OUT_OF_RANGE','Use at most 2048 characters.',{range:'source-length',value:source.length,min:0,max:2048});
   let text=source.trim(),understood=null;
  if(!/^\/run\b/i.test(text)) {
-  const prepared=stripShells(text.replace(/^\/calc\s+/i,''));
+  const prepared=usefulEnvelope(stripShells(text.replace(/^\/calc\s+/i,'')));
   let expr=expandOf(prepared);
-   const FN={plus:'+',minus:'-',and:'&',or:'|',xor:'^',nand:'&',nor:'|',xnor:'^'};
+   const FN={plus:'+',minus:'-',and:'&',or:'|',xor:'^',nand:'&',nor:'|',xnor:'^',product:'*',times:'*'};
    const NEG=new Set(['nand','nor','xnor']);
-   const head=/\b(plus|minus|and|or|xor|nand|nor|xnor|not|andn|orn|maskadd|xorand|andadd|oradd|xoradd)\s*\(/i;
-   const tailOp=/(plus|minus|and|or|xor|nand|nor|xnor|not|andn|orn|maskadd|xorand|andadd|oradd|xoradd|[+\-&|^~(,])\s*$/i;
+   const head=/\b(plus|minus|and|or|xor|nand|nor|xnor|not|product|times|andn|orn|maskadd|xorand|andadd|oradd|xoradd)\s*\(/i;
+   const tailOp=/(plus|minus|and|or|xor|nand|nor|xnor|not|product|times|andn|orn|maskadd|xorand|andadd|oradd|xoradd|[+*/\-&|^~(,])\s*$/i;
   const tailVal=/[0-9A-Za-z_)]\s*$/;
   const splitArgs=s=>{const parts=[];let depth=0,cur='';for(const ch of s){if(ch==='('){depth++;cur+=ch;}else if(ch===')'){depth--;cur+=ch;}else if(ch===','&&depth===0){parts.push(cur);cur='';}else cur+=ch;}parts.push(cur);return parts.map(p=>p.trim());};
   const expandFn=(s,depth,afterOp)=>{

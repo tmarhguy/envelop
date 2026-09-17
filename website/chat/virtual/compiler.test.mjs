@@ -18,7 +18,7 @@ const found = candidates.find(p => { try { return existsSync(p); } catch { retur
 
 test('nl_fixtures: controlled language, understood, fail-closed errors', { skip: !found && 'sibling tomato checkout absent' }, () => {
   const fix = JSON.parse(readFileSync(found, 'utf8'));
-  assert.equal(fix.version, 5);
+  assert.equal(fix.version, 6);
   for (const c of fix.compute) {
     const r = compile(c.input);
     assert.ok(r, `${c.input}: expected compute, got chat`);
@@ -46,7 +46,10 @@ function compileError(input) {
 test('structured expression errors retain human-readable messages and safe details', () => {
   const unknown = compileError('/calc 2 squared');
   assert.equal(unknown.code, 'UNKNOWN_TOKEN');
-  assert.deepEqual(unknown.details, { token: 'squared' });
+  assert.deepEqual(unknown.details, {
+    token: 'squared',
+    guidance: 'Try numbers, operators like + - * / & | ^ ~, or /help.',
+  });
   assert.match(unknown.message, /Unknown word 'squared'/);
 
   const malformed = compileError('/calc and(1)');

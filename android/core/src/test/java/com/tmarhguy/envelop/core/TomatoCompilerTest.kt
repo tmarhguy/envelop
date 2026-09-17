@@ -71,7 +71,7 @@ class TomatoCompilerTest {
             .firstOrNull(File::isFile)
         assumeTrue("sibling tomato checkout absent", fixture != null)
         val data = JSONObject(fixture!!.readText())
-        assertEquals(5, data.getInt("version"))
+        assertEquals(6, data.getInt("version"))
 
         val compute = data.getJSONArray("compute")
         for (index in 0 until compute.length()) {
@@ -96,6 +96,23 @@ class TomatoCompilerTest {
                 "${item.getString("input")}: expected ${item.getString("js_error")}, got ${failure.message}",
                 failure.message.orEmpty().contains(item.getString("js_error")),
             )
+        }
+    }
+
+    @Test
+    fun completeSemanticSpanIgnoresOnlyOutsideFiller() {
+        assertEquals(
+            "34 - 2345",
+            TomatoCompiler.compile("ohj yea, you are so good, ok what is 34 - 2345")!!.understood,
+        )
+        assertEquals(
+            "345 + ~(((2345 & 3534) & 235))",
+            TomatoCompiler.compile(
+                "i can teype gibveradklaeira adkn adihe adn adraioerh 345 + nand(2345, 3534, 235)",
+            )!!.understood,
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            TomatoCompiler.compile("/calc 2 plux 3")
         }
     }
 }

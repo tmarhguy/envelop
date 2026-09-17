@@ -42,16 +42,18 @@ test('legacy statuses normalize without changing durable resolution semantics', 
   assert.equal(normalizePhase({}), PHASES.UNKNOWN);
 });
 
-test('compile failures are local Envelop outcomes with safe technical detail', () => {
+test('unknown words use a friendly local Envelop response', () => {
   const error = {
     code: 'UNKNOWN_TOKEN',
     message: "Unknown word 'squared'.",
-    details: {token: 'squared'},
+    details: {token: 'squared', guidance: 'Try a supported operator or /help.'},
   };
   const outcome = compileOutcome(error, '/calc 2 squared');
   assert.equal(outcome.voice, 'envelop');
   assert.equal(outcome.event, 'UNKNOWN_TOKEN');
-  assert.equal(outcome.technical, 'UNKNOWN_TOKEN · squared');
+  assert.equal(outcome.text, 'I can’t help with “squared” yet.');
+  assert.equal(outcome.technical, null);
+  assert.equal(outcome.guidance, 'Try a supported operator or /help.');
   assert.deepEqual(compileOutcome(error, '/calc 2 squared'), outcome);
   assert.equal(compileOutcome(new Error('network'), 'same key'), null);
 });

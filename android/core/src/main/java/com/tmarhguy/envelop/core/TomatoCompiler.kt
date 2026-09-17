@@ -31,13 +31,20 @@ object TomatoCompiler {
     private val ofHead = Regex("\\b(?:the\\s+)?(?:bitwise\\s+)?($OF_NAMES)\\s+(?:of|between)\\s+", RegexOption.IGNORE_CASE)
     private val ofTerm = Regex("^(?:plus|minus|or|xor|nand|nor|xnor|sum|difference)\\b", RegexOption.IGNORE_CASE)
     private val opVocab = listOf("plus", "minus", "and", "or", "xor", "nand", "nor", "xnor", "not", "sum", "add")
+    private const val FN_NAMES = "plus|minus|and|or|xor|nand|nor|xnor|not|product|times|andn|orn|maskadd|xorand|andadd|oradd|xoradd"
+    private val wordOperation = Regex("\\b(?:$OF_NAMES|andn|orn|maskadd|xorand|andadd|oradd|xoradd)\\b", RegexOption.IGNORE_CASE)
+    private val meaningStart = Regex(
+        "\\b(?:$OF_NAMES)\\s+(?:of|between)\\b|\\b(?:$FN_NAMES)\\s*(?=\\()|-?(?:0x[\\da-f]+|0b[01]+|\\d+)|\\bR[0-9]+\\b|[~(]",
+        RegexOption.IGNORE_CASE,
+    )
+    private val meaningEnd = Regex("-?(?:0x[\\da-f]+|0b[01]+|\\d+)|\\bR[0-9]+\\b|\\)", RegexOption.IGNORE_CASE)
 
     fun compile(source: String): TomatoProgram? {
         require(source.length <= MAX_SOURCE) { "Use at most 2048 characters." }
         var text = source.trim()
         var understood: String? = null
         if (!text.startsWithRun()) {
-            val prepared = stripShells(text.replace(Regex("^/calc\\s+", RegexOption.IGNORE_CASE), ""))
+            val prepared = usefulEnvelope(stripShells(text.replace(Regex("^/calc\\s+", RegexOption.IGNORE_CASE), "")))
             var expr = expandOf(prepared)
             expr = FunctionExpander().expand(expr)
             mapOf("plus" to "+", "minus" to "-", "and" to "&", "or" to "|", "xor" to "^").forEach { (word, op) ->
@@ -56,6 +63,29 @@ object TomatoCompiler {
             text = "/run\n" + (lines + "RETURN R${parsed.resultRegister}").joinToString("\n")
         }
         return assemble(text, understood)
+    }
+
+    private fun usefulEnvelope(source: String): String {
+        val starts = meaningStart.findAll(source).toList()
+        val ends = meaningEnd.findAll(source).toList()
+        if (starts.isEmpty() || ends.isEmpty()) return source
+        val start = starts.first().range.first
+        var end = ends.last().range.last + 1
+        if (start == 0 && end == source.length) return source
+        val semanticPrefix = Regex("\\b([A-Za-z]+)\\s+(?:of|between)\\s*$", RegexOption.IGNORE_CASE)
+            .find(source.substring(0, start))
+        if (semanticPrefix != null &&
+            opVocab.any { editDist(semanticPrefix.groupValues[1].lowercase(Locale.ROOT), it) == 1 }
+        ) return source
+        var candidate = source.substring(start, end)
+        val tail = source.substring(end)
+        val hasSymbol = Regex("[+*\\-&|^~]").containsMatchIn(candidate)
+        val dangling = Regex("^\\s*[+*\\-&|^~]").find(tail)
+            ?: if (!hasSymbol) Regex("^\\s*(?:$OF_NAMES)\\b", RegexOption.IGNORE_CASE).find(tail) else null
+        if (dangling != null) end += dangling.range.last + 1
+        candidate = source.substring(start, end).trim()
+        if (!Regex("[+*\\-&|^~]").containsMatchIn(candidate) && !wordOperation.containsMatchIn(candidate)) return source
+        return candidate.ifEmpty { source }
     }
 
     private fun stripShells(source: String): String {
@@ -169,17 +199,17 @@ object TomatoCompiler {
         if (lower == "of") {
             val match = Regex("\\b(xnor|xor|nand|nor|plus|minus|difference|and|or|not|sum)\\b", RegexOption.IGNORE_CASE).find(prepared)
             val op = ofAlias[(match?.groupValues?.get(1) ?: "xor").lowercase(Locale.ROOT)] ?: "xor"
-            return " Did you mean $op of a and b, or $op(a, b)?"
+            return " Supported forms: $op of a and b, or $op(a, b)."
         }
         val hits = opVocab.filter { editDist(lower, it) == 1 }
-        if (hits.size == 1) return " Did you mean ${hits[0]}?"
+        if (hits.size == 1) return " Closest supported operator: ${hits[0]}."
         val words = prepared.split(Regex("\\s+"))
         for (index in 1 until words.size) {
             val prefix = words.take(index).joinToString(" ")
             if (Regex("\\d").containsMatchIn(prefix)) break
             val rest = words.drop(index).joinToString(" ")
             try {
-                if (compile(rest) != null) return " Did you mean $rest?"
+                if (compile(rest) != null) return " Recognized calculation: $rest."
             } catch (_: IllegalArgumentException) {
                 continue
             }
