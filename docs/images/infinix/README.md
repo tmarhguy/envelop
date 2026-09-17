@@ -2,11 +2,12 @@
 
 These PNG files are sanitized documentation originals captured on 2026-09-16
 from the current local Envelop website working tree. Mobile captures came from
-Chrome 150 on the connected Infinix X6831 at 1080 × 2460, addressed only as ADB
-serial `099244034R004149`. The status strip was removed to exclude notification,
-carrier, and network context. The Chrome address bar remains where useful as
-evidence that the real device browser rendered the local working tree. The
-Android navigation strip was removed except in the Gboard image.
+Chrome 150 on the connected Infinix X6831 at 1080 × 2460. ADB connection
+details are intentionally omitted. The status strip was removed to exclude
+notification, carrier, and network context. The Chrome address bar remains
+where useful as evidence that the real device browser rendered the local
+working tree. The Android navigation strip was removed except in the Gboard
+image.
 
 Chat states were staged in the page's existing DOM and renderer with synthetic
 `Guest` and `Tomato` records. Polling was stopped before staging. No Supabase

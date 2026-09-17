@@ -220,6 +220,34 @@ h1 {
   border-bottom-color: var(--red);
 }
 
+.hero-demo {
+  width: 100%;
+  max-width: 520px;
+  margin: 0;
+  padding: 8px;
+  justify-self: end;
+  background: var(--cream);
+  border: 1px solid #d7d7cb;
+  box-shadow: 7px 9px 0 #e8e9df;
+  animation: rise 0.7s ease both;
+}
+.hero-demo > a {
+  display: block;
+}
+.hero-demo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 712 / 480;
+  background: #f7f5ef;
+}
+.hero-demo figcaption {
+  padding: 10px 4px 2px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .postcard {
   position: relative;
   transform: rotate(2.5deg);

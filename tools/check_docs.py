@@ -17,6 +17,7 @@ CANONICAL_PREFIX = "https://tmarhguy.github.io/envelop/"
 SKIP_DIRS = {".git", ".gradle", ".build", ".swiftpm", "build", "node_modules", "downloads"}
 IMAGE_SUFFIXES = {".avif", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"}
 MAX_IMAGE_BYTES = 4 * 1024 * 1024
+README_HERO_MAX_BYTES = 2 * 1024 * 1024
 PRIVATE_SUFFIXES = {".aab", ".apk", ".dmg", ".exe", ".ipa", ".msi", ".zip"}
 
 
@@ -190,6 +191,14 @@ def policy_checks(errors: list[str], public_root: Path | None) -> None:
                 f"{path.relative_to(ROOT)}: image is {path.stat().st_size} bytes "
                 f"(limit {MAX_IMAGE_BYTES})"
             )
+    hero = SITE / "media" / "envelop-demo.gif"
+    if not hero.exists():
+        errors.append("website/media/envelop-demo.gif: missing README hero")
+    elif hero.stat().st_size >= README_HERO_MAX_BYTES:
+        errors.append(
+            f"{hero.relative_to(ROOT)}: hero is {hero.stat().st_size} bytes "
+            f"(must be below {README_HERO_MAX_BYTES})"
+        )
     if public_root:
         for path in public_root.rglob("*"):
             if path.is_file() and (

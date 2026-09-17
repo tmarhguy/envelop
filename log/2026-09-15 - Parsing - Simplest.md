@@ -2,6 +2,11 @@
 > the time and may be superseded. See
 > [`docs/status.md`](../docs/status.md) for current facts and compute provenance.
 
+<p align="center">
+  <img src="../website/media/screenshots/envelop-tomato-frameport.webp" width="70%" alt="FramePort capture of Envelop inside Tomato OS showing a bounded job result">
+</p>
+<p align="center"><em>The compiler's destination made visible: a bounded job executed and displayed inside Tomato OS.</em></p>
+
 The question arose: how do I meaningfully extract the right expression from something that is almost natural language?
 
 That conversation naturally opened into compiler design — lexical structure, tokenization, parsing, syntax, and eventually lowering everything into something Tomato can actually execute.
