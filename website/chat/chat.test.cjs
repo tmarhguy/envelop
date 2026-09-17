@@ -237,7 +237,7 @@ test('minimal suggestions live inside the active chat instead of name entry', ()
   assert.doesNotMatch(welcome, /data-suggestions/);
   assert.match(conversation, /class="try-row thread-suggestions" data-suggestions/);
   assert.match(binding, /await submitCuratedText\(text\)/);
-  assert.match(source, /\$\('chat-draft'\)\.addEventListener\('input'.*renderSuggestions\(helpGuideModule\)/s);
+  assert.match(source, /const draft = \$\('chat-draft'\);[\s\S]*draft\.addEventListener\('input'[\s\S]*renderSuggestions\(helpGuideModule\)/);
   assert.match(source, /selectSuggestions\(\{[\s\S]*?started: suggestionStarted, count: 4/);
   assert.match(css, /\.thread-suggestions \{[\s\S]*?flex-wrap: nowrap;/);
   assert.match(css, /\.thread-suggestions \.try-chip \{[\s\S]*?min-width: 0;[\s\S]*?white-space: nowrap;/);

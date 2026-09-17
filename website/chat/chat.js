@@ -8,7 +8,7 @@ const SUPABASE_KEY = 'sb_publishable_nhog8psQAljHGK3RvIyp-Q_26yCYmsF';
 const DEVICE_ID = '00000000-0000-0000-0000-000000000001';
 const STORE_KEY = 'envelop.web.session.v1';
 const READ_KEY = 'envelop.web.read.v1';
-const ASSET_VERSION = '20260917-premium-3';
+const ASSET_VERSION = '20260917-premium-4';
 const MODE_KEY = 'envelop.execution-mode.v1';
 const POLL_ACTIVE_MS = 3000;
 const POLL_BACKOFF_MS = [10000, 20000, 30000];
@@ -1642,30 +1642,45 @@ function markSuggestionOperationStarted() {
 }
 
 if (typeof window !== 'undefined') {
+  // Set viewport height immediately so the first paint is not stuck on an unset --app-height.
+  bindAppHeight();
   window.addEventListener('DOMContentLoaded', () => {
     try { state.executionMode = localStorage.getItem(MODE_KEY) === 'physical' ? 'physical' : 'virtual'; } catch {}
     try { suggestionStarted = sessionStorage.getItem('envelop.suggestions.started') === '1'; } catch (e) { /* private mode */ }
-    $('chat-join').addEventListener('click', enter);
-    $('chat-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') enter(); });
+    bindAppHeight();
+    const join = $('chat-join');
+    const name = $('chat-name');
+    if (join) join.addEventListener('click', enter);
+    if (name) name.addEventListener('keydown', (e) => { if (e.key === 'Enter') enter(); });
     // Tappable examples: tap enters the exact text, addressed to Tomato.
     document.querySelectorAll('.try-chip').forEach(bindTryChip);
-    $('chat-send').addEventListener('click', send);
-    $('chat-draft').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
-    });
-    $('chat-draft').addEventListener('input', () => {
-      suggestionRound += 1;
-      if (helpGuideModule) renderSuggestions(helpGuideModule);
-    });
-    $('chat-search').addEventListener('input', (e) => {
+    const sendBtn = $('chat-send');
+    const draft = $('chat-draft');
+    if (sendBtn) sendBtn.addEventListener('click', send);
+    if (draft) {
+      draft.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+      });
+      draft.addEventListener('input', () => {
+        suggestionRound += 1;
+        if (helpGuideModule) renderSuggestions(helpGuideModule);
+      });
+    }
+    const searchInput = $('chat-search');
+    if (searchInput) searchInput.addEventListener('input', (e) => {
       clearTimeout(state.searchTimer);
       state.searchTimer = setTimeout(() => search(e.target.value), 250);
     });
-    $('chat-forget').addEventListener('click', forget);
-    $('chat-leave').addEventListener('click', leave);
-    $('mode-virtual').addEventListener('click', () => selectExecutionMode('virtual'));
-    $('mode-physical').addEventListener('click', () => selectExecutionMode('physical'));
-    $('chat-back').addEventListener('click', () => {
+    const forgetBtn = $('chat-forget');
+    if (forgetBtn) forgetBtn.addEventListener('click', forget);
+    const leaveBtn = $('chat-leave');
+    if (leaveBtn) leaveBtn.addEventListener('click', leave);
+    const modeVirtual = $('mode-virtual');
+    const modePhysical = $('mode-physical');
+    if (modeVirtual) modeVirtual.addEventListener('click', () => selectExecutionMode('virtual'));
+    if (modePhysical) modePhysical.addEventListener('click', () => selectExecutionMode('physical'));
+    const back = $('chat-back');
+    if (back) back.addEventListener('click', () => {
       if (history.state && history.state.envelopPane === 'thread') history.back();
       else closeThread();
     });
@@ -1673,12 +1688,11 @@ if (typeof window !== 'undefined') {
       if (state.peer && mobileChat()) closeThread();
     });
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && state.peer && mobileChat() && !$('chat-grid').hidden) {
+      if (e.key === 'Escape' && state.peer && mobileChat() && $('chat-grid') && !$('chat-grid').hidden) {
         if (history.state && history.state.envelopPane === 'thread') history.back();
         else closeThread();
       }
     });
-    bindAppHeight();
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         stopPolling();

@@ -1,4 +1,4 @@
-import {presentation} from './experience.mjs?v=20260917-premium-3';
+import {presentation} from './experience.mjs?v=20260917-premium-4';
 import {EVENTS, VOICES, selectPersonality} from './personality.mjs?v=20260917-tomato-playground';
 
 export const PHASES = Object.freeze({
