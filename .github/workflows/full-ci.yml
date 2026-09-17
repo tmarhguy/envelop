@@ -37,6 +37,7 @@ jobs:
           mkdir .public-site
           rsync -a \
             --exclude 'downloads/' \
+            --exclude '*.test.js' --exclude '*.test.mjs' --exclude '*.test.cjs' \
             --exclude '*.apk' --exclude '*.aab' --exclude '*.zip' \
             --exclude '*.dmg' --exclude '*.ipa' --exclude '*.exe' --exclude '*.msi' \
             --exclude '.env*' --exclude '*.key' --exclude '*.pem' --exclude '*.pfx' \
