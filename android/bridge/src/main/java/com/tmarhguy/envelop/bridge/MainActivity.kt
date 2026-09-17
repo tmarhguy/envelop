@@ -112,13 +112,33 @@ private class AppState(private val api: CloudApi) {
     }
 
     suspend fun bindPassword() {
-        api.setOwnerCredentials()
-        passwordBound = true
-        error = ""
+        runCatching { api.setOwnerCredentials() }
+            .onSuccess {
+                passwordBound = true
+                error = ""
+            }
+            .onFailure { failure ->
+                val message = failure.message.orEmpty()
+                if (message.contains("different from the old password", ignoreCase = true) ||
+                    message.contains("same password", ignoreCase = true)
+                ) {
+                    passwordBound = true
+                    error = ""
+                } else {
+                    throw failure
+                }
+            }
     }
 
     private suspend fun bindPasswordQuietly() {
-        passwordBound = api.ensureOwnerPasswordBound()
+        passwordBound = runCatching {
+            api.setOwnerCredentials()
+            true
+        }.recover { failure ->
+            val message = failure.message.orEmpty()
+            message.contains("different from the old password", ignoreCase = true) ||
+                message.contains("same password", ignoreCase = true)
+        }.getOrDefault(false)
     }
 
     suspend fun flush() {
