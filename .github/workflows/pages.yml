@@ -26,8 +26,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Run all 17 website tests
-        run: node --test website/chat/chat.test.cjs website/chat/job-view.test.mjs website/chat/personality.test.mjs website/chat/virtual/compiler.test.mjs
+      - name: Run all website tests
+        run: node --test website/chat/*.test.cjs website/chat/*.test.mjs website/chat/virtual/*.test.mjs
       - name: Check documentation and public boundary
         run: python3 tools/check_docs.py
       - name: Stage public site without private packages
