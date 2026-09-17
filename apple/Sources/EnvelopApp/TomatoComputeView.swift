@@ -52,7 +52,7 @@ struct TomatoComputeView: View {
             }
             if record.fallback {
                 Text("Physical Tomato is unavailable for this job. Use Virtual Tomato?").font(.headline)
-                Text("It runs the same OS on simulated CPU RTL. The result will be labeled Virtual Tomato; this job will not run later on hardware.").font(.caption).foregroundStyle(.secondary)
+                Text("It runs through the local Virtual Tomato emulator service. The result will be labeled Virtual Tomato; this job will not run later on hardware.").font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Button("Use Virtual Tomato") { Task { await virtual() } }.buttonStyle(.borderedProminent)
                     Button("Cancel") { record.fallback = false; record.target = "Cancelled — no virtual execution" }
@@ -90,9 +90,17 @@ struct TomatoComputeView: View {
             guard let hex = parsed.job else {
                 record.failure = "Use the conversation for chat. This panel accepts compute jobs."; return
             }
-            let bytes = stride(from: 0, to: hex.count, by: 2).compactMap { i -> UInt8? in
-                let start = hex.index(hex.startIndex, offsetBy: i), end = hex.index(start, offsetBy: 2)
-                return UInt8(hex[start..<end], radix: 16)
+            guard hex.count.isMultiple(of: 2) else {
+                record.failure = "Compiler returned malformed bytecode."; return
+            }
+            var bytes: [UInt8] = []
+            for i in stride(from: 0, to: hex.count, by: 2) {
+                let start = hex.index(hex.startIndex, offsetBy: i)
+                let end = hex.index(start, offsetBy: 2)
+                guard let byte = UInt8(hex[start..<end], radix: 16) else {
+                    record.failure = "Compiler returned malformed bytecode."; return
+                }
+                bytes.append(byte)
             }
             record.jobHex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
             record.target = "Trying physical Tomato…"
@@ -113,7 +121,7 @@ struct TomatoComputeView: View {
                 // Development-only direct BLE path. Authenticated online
                 // conversations always use durable compute_jobs above.
                 record.wireHex = session.computeWireHex
-                record.target = "Physical Tomato · direct Bluetooth"
+                record.target = "Direct BLE development path · not provenance-verified"
                 let value = reply.suffix(4).reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
                 record.result = reply[4] == 0 ? "\(value)\n" + String(format: "0x%08X", value) : "Tomato rejected the job (error \(reply[4]))."
             } else {
@@ -130,7 +138,7 @@ struct TomatoComputeView: View {
         record.fallback = false; record.busy = true; defer { record.busy = false }; record.failure = ""
         do {
             let parsed = try await call("execute", text: record.frozenSource)
-            record.target = "Executed on Virtual Tomato · CPU RTL"
+            record.target = "Virtual Tomato · local emulator service"
             record.result = parsed.replies?.map(\.text).joined(separator: "\n\n") ?? "No response"
         } catch { record.failure = error.localizedDescription; record.target = "Virtual execution failed" }
     }

@@ -350,6 +350,7 @@ final class CloudSession: ObservableObject {
                 }
                 let instance = self.bridgeInstance
                 Task { [weak self] in await self?.release(instance) }
+                self.clearComputeWaiters()
                 self.routes.reset(); self.deliveryTokens.removeAll(); self.announcedRoutes.removeAll()
                 self.lastForward.removeAll(); self.outboundNonces.removeAll(); self.nextToken = 1
                 self.bridgeInstance = UUID()
@@ -367,8 +368,20 @@ final class CloudSession: ObservableObject {
         bridgeState = .idle
         let instance = bridgeInstance
         Task { [weak self] in await self?.release(instance) }
+        clearComputeWaiters()
         bridgeInstance = UUID(); routes.reset(); deliveryTokens.removeAll()
         announcedRoutes.removeAll(); outboundNonces.removeAll(); lastForward.removeAll(); nextToken = 1
+    }
+    private func clearComputeWaiters() {
+        if let pending = computeWaiter {
+            computeWaiter = nil
+            pending.continuation.resume(returning: nil)
+        }
+        let pending = Array(bridgeComputeWaiters.values)
+        bridgeComputeWaiters.removeAll()
+        for waiter in pending {
+            waiter.continuation.resume(returning: nil)
+        }
     }
     private func release(_ instance: UUID) async {
         // PostgREST returns JSON null for void RPCs.
@@ -499,14 +512,18 @@ final class CloudSession: ObservableObject {
                     if let frame = try? DeviceFrame(type: .contactUpsert, route: route, payload: payload), radio?.sendFrame(frame) == true { announcedRoutes.insert(route) }
                     else { continue }
                 }
-                let bytes = job.job_hex.split(separator: " ").compactMap { UInt8($0, radix: 16) }
-                guard !bytes.isEmpty, bytes.count <= DeviceFrame.maximumPayload - 4 else {
+                let parts = job.job_hex.split(separator: " ")
+                let decoded = parts.map { UInt8($0, radix: 16) }
+                guard !parts.isEmpty, parts.allSatisfy({ $0.count == 2 }),
+                      decoded.allSatisfy({ $0 != nil }),
+                      decoded.count <= DeviceFrame.maximumPayload - 4 else {
                     let _: CloudComputeJob? = try? await request(
                         BridgeAPI.computeFinish,
                         body: ["p_job": job.job_id.uuidString, "p_device": deviceID, "p_instance": bridgeInstance.uuidString, "p_result_text": NSNull(), "p_error": "malformed job hex"] as [String: Any]
                     )
                     continue
                 }
+                let bytes = decoded.compactMap { $0 }
                 guard nextToken < UInt32.max else { continue }
                 let token = nextToken; nextToken += 1
                 do {
@@ -559,6 +576,20 @@ final class CloudSession: ObservableObject {
                 self.error = message
             }
             await release(bridgeInstance)
+            radio?.onLink = nil
+            radio?.onBytes = nil
+            radio?.stop()
+            radio = nil
+            parser.reset()
+            bridgeGeneration = UUID()
+            clearComputeWaiters()
+            routes.reset()
+            deliveryTokens.removeAll()
+            announcedRoutes.removeAll()
+            lastForward.removeAll()
+            outboundNonces.removeAll()
+            nextToken = 1
+            bridgeInstance = UUID()
         }
     }
     private func startPolling() {

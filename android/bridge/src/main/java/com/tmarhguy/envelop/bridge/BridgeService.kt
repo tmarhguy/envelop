@@ -156,7 +156,8 @@ override fun onBind(intent: Intent?): IBinder? = null
                                 "p_result_text" to null, "p_error" to "malformed job hex")
                             continue
                         }
-                        val token = nextToken++.also { if (nextToken > 0xffffffffL) nextToken = 1 }
+                        if (nextToken > 0xffffffffL) continue
+                        val token = nextToken++
                         try {
                             api.rpc("bridge_claim_compute_job", "p_job" to job.getString("job_id"),
                                 "p_device" to CloudApi.TOMATO, "p_instance" to connectionInstance.toString())
@@ -184,6 +185,7 @@ override fun onBind(intent: Intent?): IBinder? = null
                     release(connectionInstance)
                     BridgeState.update("Cloud bridge unavailable", connected = true,
                         error = error.message ?: "Cloud bridge failed")
+                    throw error
                 }
                 delay(3_000)
             }

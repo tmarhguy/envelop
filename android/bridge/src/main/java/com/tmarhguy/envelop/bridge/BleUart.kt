@@ -81,13 +81,19 @@ class BleUart(private val context: Context) {
         }
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             val service = gatt.getService(SERVICE)
-            rx = service?.getCharacteristic(RX)
+            val rxCharacteristic = service?.getCharacteristic(RX)
             val tx = service?.getCharacteristic(TX)
-            if (status != BluetoothGatt.GATT_SUCCESS || rx == null || tx == null) {
+            val canWriteWithoutResponse = ((rxCharacteristic?.properties ?: 0) and
+                BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0
+            val canNotify = ((tx?.properties ?: 0) and
+                BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0
+            val descriptor = tx?.getDescriptor(CCCD)
+            if (status != BluetoothGatt.GATT_SUCCESS || rxCharacteristic == null || tx == null ||
+                !canWriteWithoutResponse || !canNotify || descriptor == null) {
                 ready.completeExceptionally(IllegalStateException("Nordic UART service unavailable")); return
             }
+            rx = rxCharacteristic
             gatt.setCharacteristicNotification(tx, true)
-            val descriptor = tx.getDescriptor(CCCD)
             val value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
             if (Build.VERSION.SDK_INT >= 33) gatt.writeDescriptor(descriptor, value)
             else { descriptor.value = value; gatt.writeDescriptor(descriptor) }
