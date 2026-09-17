@@ -3,7 +3,7 @@
 set -eu
 cd "$(dirname "$0")"
 ROOT="$(cd .. && pwd)"
-VERSION="${ENVELOP_VERSION:-0.2.0}"
+VERSION="${ENVELOP_VERSION:-0.2.1}"
 OUT_DIR="${ENVELOP_ANDROID_OUT:-$ROOT/android/private-builds}"
 APK_NAME="envelop-private-${VERSION}.apk"
 

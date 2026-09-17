@@ -34,10 +34,10 @@ The dashboard-only `envelop_private.bootstrap_owner(uuid)` function turns that
 profile into `Tyrone Marhguy`, the sole admin, and a trusted Tomato BLE bridge.
 It is not granted to anonymous API clients.
 
-There is no owner password or public claim flow. If the private Android app's
-local anonymous identity is lost, preserve needed data, perform a clean schema
-reset, create a replacement app profile, and bootstrap its UUID from the
-dashboard. A service-role key must never be shipped as a recovery mechanism.
+After bootstrap, the private Android app binds a recovery email/password to the
+same auth user. Later installs sign in with that password instead of creating a
+new anonymous identity. A service-role key must never be shipped as a recovery
+mechanism.
 
 ## Client configuration
 

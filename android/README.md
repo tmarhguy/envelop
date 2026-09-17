@@ -1,8 +1,8 @@
 # Private Android app
 
-This private 0.2.0 APK combines owner chat, Tomato compute framing, admin
-tools, and a foreground BLE bridge. It has no public login, ownership claim,
-artifact, or download. Do not publish the APK or its package location.
+This private 0.2.1 APK combines owner chat, Tomato compute framing, admin
+tools, and a foreground BLE bridge. It has no public download. Do not publish
+the APK or its package location.
 
 ## Backend warning
 
@@ -17,21 +17,24 @@ runbook](../docs/backend-deployment-recovery.md).
 ## Clean staging setup
 
 1. Run the destructive schema in the disposable staging project.
-2. Open this Android app. It creates or restores its anonymous session and
-   displays one SQL command containing its profile UUID.
-3. Run that command in the staging Supabase SQL editor.
-4. Tap **Check setup**. The app becomes `Tyrone Marhguy`, sole admin, and a
-   trusted Tomato bridge.
+2. In Supabase Auth settings, allow email+password and disable email
+   confirmation for this private project.
+3. Open this Android app and choose **First-time setup**. It creates an
+   anonymous profile and shows one SQL command containing its profile UUID.
+4. Run that command once in the staging Supabase SQL editor, then tap
+   **Check setup**.
+5. Tap **Save recovery password** (or let the app bind
+   `owner@envelop.private` / the private operator password). After that,
+   reinstalls use **Sign in** — no more SQL.
 
-There is no password, login, claim button, or lockout flow. The private owner
-bootstrap is not exposed to anonymous API clients; it runs only with dashboard
-database privileges.
+There is no public ownership-claim flow. `bootstrap_owner` stays dashboard-only
+for the first owner on a clean project.
 
-The owner identity is the app's local anonymous-auth identity. If the app is
-uninstalled, its data is cleared, or that identity is otherwise lost, the
-supported recovery is to preserve needed data, perform a clean schema reset,
-open the app to create a replacement profile, and bootstrap that UUID from the
-dashboard. There is no public password reset or ownership-claim path.
+## Recovery
+
+If the sealed local session is cleared, sign in with the recovery email and
+password. Do not mint a new anonymous owner or re-run bootstrap unless you are
+intentionally replacing the private network owner.
 
 ## Bridge boundary
 
@@ -41,11 +44,18 @@ one-unexpired-lease rules are separate. A checked-in or built app is not proof
 that Tomato is currently online. See [bridge
 operations](../docs/bridge-operations.md).
 
+## Chat coherence
+
+Tomato chat on Android mirrors the web playground routing for local knowledge,
+`/help` examples, and Physical Tomato compute provenance. Virtual browser CPU
+execution remains web-only.
+
 ## Build
 
 Install JDK 17 and ensure `JAVA_HOME` selects it. Gradle 8.11.1 with the current
 Android plugin is not supported by this project on Java 25. On macOS with a
 registered JDK 17:
+
 
 ```sh
 export JAVA_HOME=$(/usr/libexec/java_home -v 17)

@@ -79,12 +79,11 @@ permits one unexpired authenticated bridge lease at a time.
   profiles, conversations, messages, queues, jobs, leases, grants, and related
   state. It is a destructive reset, not an incremental migration.
 - Owner bootstrap is dashboard-only through
-  `envelop_private.bootstrap_owner(uuid)`. It promotes an existing anonymous
-  human profile, provisions that profile as the sole admin and trusted Tomato
-  bridge, and is not callable through the anonymous public API.
-- If the private Android owner's local identity is lost, the documented
-  recovery is a clean schema reset followed by owner bootstrap. Back up any
-  data that must survive before applying the schema.
+  `envelop_private.bootstrap_owner(uuid)` for the first owner on a clean
+  project. The private Android app then binds a recovery email/password to that
+  same auth user so reinstalls sign in instead of minting a new anonymous UUID.
+- If the sealed session is lost, sign in with the recovery password. A schema
+  reset is only for intentional full replacement of the private network.
 - Clients receive only the project HTTPS URL and public publishable/anonymous
   key. Secret or service-role keys must not ship in clients.
 

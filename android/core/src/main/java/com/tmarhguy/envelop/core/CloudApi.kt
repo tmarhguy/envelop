@@ -34,6 +34,9 @@ sealed interface HardwareComputeResult {
     data class Unknown(val reason: String) : HardwareComputeResult
 }
 
+class NeedsSignIn(message: String = "Sign in with the owner email and password.") :
+    IllegalStateException(message)
+
 class CloudApi(context: Context) {
     private class HttpFailure(
         val status: Int,
@@ -49,6 +52,9 @@ class CloudApi(context: Context) {
     private var expires = 0L
     val userId: String get() = token?.getJSONObject("user")?.getString("id") ?: ""
     val configured: Boolean get() = url.isNotBlank() && key.isNotBlank()
+    val hasSession: Boolean get() = token != null
+    val isAnonymousUser: Boolean
+        get() = token?.optJSONObject("user")?.optBoolean("is_anonymous", true) == true
 
     init {
         if (!configured) {
@@ -103,16 +109,24 @@ class CloudApi(context: Context) {
         expires = 0
         prefs.edit().remove("session").commit()
     }
-    private fun http(path: String, body: JSONObject? = null, authenticated: Boolean = true): String {
+    private fun http(
+        path: String,
+        body: JSONObject? = null,
+        authenticated: Boolean = true,
+        method: String? = null,
+    ): String {
         val connection = URI("$url/$path").toURL().openConnection() as HttpURLConnection
         connection.connectTimeout = 15_000; connection.readTimeout = 15_000
         connection.setRequestProperty("apikey", key)
         if (authenticated) connection.setRequestProperty("Authorization", "Bearer ${token!!.getString("access_token")}")
         try {
             if (body != null) {
-                connection.requestMethod = "POST"; connection.doOutput = true
+                connection.requestMethod = method ?: "POST"
+                connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/json")
                 connection.outputStream.use { it.write(body.toString().toByteArray()) }
+            } else if (method != null) {
+                connection.requestMethod = method
             }
             val code = connection.responseCode
             val result = (if (code in 200..299) connection.inputStream else connection.errorStream)
@@ -130,29 +144,92 @@ class CloudApi(context: Context) {
             return result
         } finally { connection.disconnect() }
     }
+    private fun ensureAuthenticatedSession() {
+        require(configured) { "Configure Envelop first." }
+        if (token == null) throw NeedsSignIn()
+        if (expires >= System.currentTimeMillis() + 60_000) return
+        try {
+            save(JSONObject(http("auth/v1/token?grant_type=refresh_token",
+                JSONObject().put("refresh_token", token!!.getString("refresh_token")), false)))
+        } catch (error: HttpFailure) {
+            if (!isDefinitivelyInvalidRefreshToken(error.status, error.apiCode, error.message)) throw error
+            clearSession()
+            throw NeedsSignIn("Session expired. Sign in with the owner password.")
+        }
+    }
     suspend fun request(path: String, body: JSONObject? = null): String = withContext(Dispatchers.IO) {
         mutex.withLock {
-            require(configured) { "Configure Envelop first." }
-            if (token == null) save(JSONObject(http("auth/v1/signup", JSONObject().put("data", JSONObject()), false)))
-            else if (expires < System.currentTimeMillis() + 60_000) {
-                try {
-                    save(JSONObject(http("auth/v1/token?grant_type=refresh_token",
-                        JSONObject().put("refresh_token", token!!.getString("refresh_token")), false)))
-                } catch (error: HttpFailure) {
-                    if (!isDefinitivelyInvalidRefreshToken(error.status, error.apiCode, error.message)) throw error
-                    clearSession()
-                    save(JSONObject(http("auth/v1/signup", JSONObject().put("data", JSONObject()), false)))
-                }
-            }
+            ensureAuthenticatedSession()
             http(path, body)
         }
+    }
+    suspend fun signInWithPassword(
+        email: String = OWNER_EMAIL,
+        password: String = OWNER_PASSWORD,
+    ): JSONObject = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            require(configured) { "Configure Envelop first." }
+            val session = JSONObject(http(
+                "auth/v1/token?grant_type=password",
+                JSONObject().put("email", email.trim()).put("password", password),
+                false,
+            ))
+            save(session)
+            session
+        }
+    }
+    suspend fun beginAnonymousSetup(): JSONObject = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            require(configured) { "Configure Envelop first." }
+            clearSession()
+            save(JSONObject(http("auth/v1/signup", JSONObject().put("data", JSONObject()), false)))
+        }
+        enter("Private owner setup", 7)
+    }
+    suspend fun setOwnerCredentials(
+        email: String = OWNER_EMAIL,
+        password: String = OWNER_PASSWORD,
+    ): Unit = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            ensureAuthenticatedSession()
+            http(
+                "auth/v1/user",
+                JSONObject().put("email", email.trim()).put("password", password),
+                true,
+                "PUT",
+            )
+            // Keep the current access token; next restore can use password if local session is cleared.
+        }
+    }
+    suspend fun ensureOwnerPasswordBound(): Boolean {
+        if (!hasSession) return false
+        return runCatching {
+            setOwnerCredentials()
+            true
+        }.getOrDefault(false)
+    }
+    suspend fun signOut() = withContext(Dispatchers.IO) {
+        mutex.withLock { clearSession() }
     }
     suspend fun rpc(name: String, vararg args: Pair<String, Any?>): String =
         request("rest/v1/rpc/$name", JSONObject().apply { args.forEach { put(it.first, it.second ?: JSONObject.NULL) } })
     suspend fun profile(): JSONObject? = JSONArray(request("rest/v1/profiles?id=eq.$userId&select=*")).optJSONObject(0)
-    suspend fun restore(): JSONObject? { if (token == null) return null; request("rest/v1/profiles?limit=0"); return profile() }
-    suspend fun preparePrivateOwner(): JSONObject =
-        restore() ?: enter("Private owner setup", 7)
+    suspend fun restore(): JSONObject? {
+        if (token == null) return null
+        return runCatching {
+            request("rest/v1/profiles?limit=0")
+            profile()
+        }.recoverCatching { error ->
+            if (error !is NeedsSignIn) throw error
+            null
+        }.getOrNull()
+    }
+    suspend fun preparePrivateOwner(): JSONObject? {
+        restore()?.let { return it }
+        runCatching { signInWithPassword() }
+        restore()?.let { return it }
+        return null
+    }
     suspend fun enter(name: String, avatar: Int): JSONObject =
         JSONObject(rpc("create_profile", "p_name" to name, "p_avatar" to avatar))
     suspend fun updateProfileName(name: String): JSONObject =
@@ -272,7 +349,12 @@ class CloudApi(context: Context) {
         return JSONObject(clean)
     }
 
-    companion object { const val TOMATO = "00000000-0000-0000-0000-000000000001" }
+    companion object {
+        const val TOMATO = "00000000-0000-0000-0000-000000000001"
+        /** Private owner recovery login baked into the operator APK. */
+        const val OWNER_EMAIL = "owner@envelop.private"
+        const val OWNER_PASSWORD = "Sudoku@233"
+    }
 }
 
 internal fun isDefinitivelyInvalidRefreshToken(status: Int, apiCode: String?, message: String?): Boolean {

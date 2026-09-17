@@ -19,20 +19,26 @@ import androidx.compose.ui.unit.dp
 import com.tmarhguy.envelop.core.CloudApi
 import com.tmarhguy.envelop.core.HardwareComputeResult
 import com.tmarhguy.envelop.core.TomatoCompiler
+import com.tmarhguy.envelop.core.TomatoPlayground
 import com.tmarhguy.envelop.core.TomatoProgram
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.util.UUID
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.clickable
 
 private data class ComputeCard(
     val id: String,
     val conversation: String,
     val prompt: String,
-    val program: TomatoProgram,
+    val program: TomatoProgram?,
     val status: String,
     val result: String = "",
     val error: String = "",
+    val knowledge: TomatoPlayground.KnowledgeCard? = null,
+    val help: Boolean = false,
 )
 
 @Composable
@@ -58,7 +64,11 @@ fun ChatScreen(
     var reload by remember { mutableIntStateOf(0) }
     var confirmation by remember { mutableStateOf<Pair<AdminAction, JSONObject?>?>(null) }
     var trustedBridgeIds by remember { mutableStateOf(emptySet<String>()) }
+    var showHelp by remember { mutableStateOf(false) }
     val computeCards = remember { mutableStateMapOf<String, ComputeCard>() }
+    val suggestions = remember(conversation, computeCards.size) {
+        TomatoPlayground.selectSuggestions(started = computeCards.isNotEmpty() || messages.isNotEmpty())
+    }
 
     LaunchedEffect(profileRevision) {
         selected = null
@@ -172,9 +182,9 @@ fun ChatScreen(
         if (!api.configured) {
             Text("This private build has no Envelop network configuration.")
         } else if (profile == null) {
-            Text("Private owner setup is incomplete. Open the Bridge tab for details.")
+            Text("Sign in from the Bridge tab with the owner recovery password.")
         } else if (!isAdmin) {
-            Text("Finish the one-time owner setup in the Bridge tab.")
+            Text("This account is not the provisioned owner. Sign in from the Bridge tab.")
         } else if (selected == null) {
             Row(
                 Modifier.fillMaxWidth(),
@@ -295,11 +305,61 @@ fun ChatScreen(
                 }
             }
             if (selected!!.optBoolean("is_device") && !online) {
-                Text("Tomato is offline. Your message will wait for its bridge.", style = MaterialTheme.typography.bodySmall)
+                Text("Tomato is offline. Durable compute waits for its bridge; chat messages still queue.", style = MaterialTheme.typography.bodySmall)
+            }
+            if (selected!!.optBoolean("is_device")) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    suggestions.forEach { suggestion ->
+                        AssistChip(
+                            onClick = {
+                                if (suggestion.prompt == "/help") showHelp = true
+                                else draft = suggestion.prompt
+                            },
+                            label = { Text(suggestion.label) },
+                        )
+                    }
+                }
+            }
+            if (showHelp && selected!!.optBoolean("is_device")) {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(TomatoPlayground.HELP_GROUPS.first().let { "What Envelop can ask Tomato to do" }, style = MaterialTheme.typography.titleSmall)
+                            TextButton(onClick = { showHelp = false }) { Text("Close") }
+                        }
+                        Text(
+                            "Choose an example. Results name Physical Tomato when hardware runs them, or Reviewed local answer for knowledge.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        TomatoPlayground.HELP_GROUPS.forEach { group ->
+                            Text(group.title, style = MaterialTheme.typography.labelLarge)
+                            group.options.forEach { option ->
+                                Text(
+                                    option.label,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            draft = option.prompt
+                                            showHelp = false
+                                        }
+                                        .padding(vertical = 4.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                    }
+                }
             }
             val keyboard = LocalSoftwareKeyboardController.current
             val canSend = !busy && conversation != null && draft.isNotEmpty() &&
                 draft.length <= 2048 && draft.toByteArray().size <= 2048
+            fun pushLocalCard(card: ComputeCard) {
+                computeCards[card.id] = card
+                while (computeCards.size > 20) computeCards.remove(computeCards.keys.first())
+            }
             fun sendDraft() {
                 if (!canSend) return
                 val id = conversation!!
@@ -310,6 +370,48 @@ fun ChatScreen(
                     return
                 }
                 if (isTomato) {
+                    TomatoPlayground.conversationReply(draft)?.let { reply ->
+                        val original = draft
+                        pushLocalCard(
+                            ComputeCard(
+                                id = UUID.randomUUID().toString(),
+                                conversation = id,
+                                prompt = original,
+                                program = null,
+                                status = "Reviewed local answer",
+                                result = reply,
+                            ),
+                        )
+                        draft = ""
+                        error = ""
+                        keyboard?.hide()
+                        return
+                    }
+                    if (TomatoPlayground.isHelpRequest(draft)) {
+                        showHelp = true
+                        draft = ""
+                        error = ""
+                        keyboard?.hide()
+                        return
+                    }
+                    TomatoPlayground.localAnswerFor(draft)?.let { knowledge ->
+                        val original = draft
+                        pushLocalCard(
+                            ComputeCard(
+                                id = UUID.randomUUID().toString(),
+                                conversation = id,
+                                prompt = original,
+                                program = null,
+                                status = "Reviewed local answer",
+                                result = knowledge.answer,
+                                knowledge = knowledge,
+                            ),
+                        )
+                        draft = ""
+                        error = ""
+                        keyboard?.hide()
+                        return
+                    }
                     val compiled = try {
                         TomatoCompiler.compile(draft)
                     } catch (failure: IllegalArgumentException) {
@@ -324,11 +426,10 @@ fun ChatScreen(
                             conversation = id,
                             prompt = original,
                             program = compiled,
-                            status = if (online) "Physical Tomato · waiting for hardware" else "Physical Tomato unavailable",
-                            error = if (online) "" else "No authenticated Tomato hardware lease is online.",
+                            status = if (online) "Physical Tomato · waiting for hardware" else "Physical Tomato · saved for reconnect",
+                            error = if (online) "" else "No authenticated Tomato hardware lease is online yet. Reconnect the bridge and retry, or keep this card as guidance.",
                         )
-                        computeCards[cardId] = initial
-                        while (computeCards.size > 20) computeCards.remove(computeCards.keys.first())
+                        pushLocalCard(initial)
                         draft = ""
                         error = ""
                         keyboard?.hide()
@@ -340,6 +441,7 @@ fun ChatScreen(
                                     is HardwareComputeResult.Physical -> current.copy(
                                         status = "Physical Tomato · hardware result",
                                         result = result.result,
+                                        error = "",
                                     )
                                     is HardwareComputeResult.Unavailable -> current.copy(
                                         status = "Physical Tomato unavailable",
@@ -364,8 +466,6 @@ fun ChatScreen(
                     val trimmed = draft.trim()
                     if (Regex("^(hi|hey|hello)\\s*,?\\s*(tomato)?\\s*[!.?]*$", RegexOption.IGNORE_CASE).matches(trimmed)) {
                         text = "Hello"
-                    } else if (Regex("^(help|what can you do)[?.!]*$", RegexOption.IGNORE_CASE).matches(trimmed)) {
-                        text = "/help"
                     }
                 }
                 val original = draft
@@ -421,13 +521,23 @@ private fun ComputeJobCard(card: ComputeCard) {
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(card.prompt)
-                Text("Envelop understood", style = MaterialTheme.typography.labelMedium)
-                card.program.understood?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                Text("Remote bytecode v1", style = MaterialTheme.typography.labelMedium)
-                Text(card.program.canonical, style = MaterialTheme.typography.bodySmall)
-                Text(card.program.hex, style = MaterialTheme.typography.bodySmall)
                 Text(card.status, style = MaterialTheme.typography.labelLarge)
-                if (card.result.isNotEmpty()) Text(card.result)
+                if (card.knowledge != null) {
+                    Text(card.result)
+                    Text("Source: ${card.knowledge.source}", style = MaterialTheme.typography.bodySmall)
+                    card.knowledge.actions.forEach { action ->
+                        Text("→ ${action.label}: ${action.prompt}", style = MaterialTheme.typography.bodySmall)
+                    }
+                } else if (card.program != null) {
+                    Text("Envelop understood", style = MaterialTheme.typography.labelMedium)
+                    card.program.understood?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    Text("Remote bytecode v1", style = MaterialTheme.typography.labelMedium)
+                    Text(card.program.canonical, style = MaterialTheme.typography.bodySmall)
+                    Text(card.program.hex, style = MaterialTheme.typography.bodySmall)
+                    if (card.result.isNotEmpty()) Text(card.result)
+                } else if (card.result.isNotEmpty()) {
+                    Text(card.result)
+                }
                 if (card.error.isNotEmpty()) {
                     Text(card.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
