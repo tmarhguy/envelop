@@ -8,7 +8,7 @@ const SUPABASE_KEY = 'sb_publishable_nhog8psQAljHGK3RvIyp-Q_26yCYmsF';
 const DEVICE_ID = '00000000-0000-0000-0000-000000000001';
 const STORE_KEY = 'envelop.web.session.v1';
 const READ_KEY = 'envelop.web.read.v1';
-const ASSET_VERSION = '20260917-premium-2';
+const ASSET_VERSION = '20260917-premium-3';
 const MODE_KEY = 'envelop.execution-mode.v1';
 const POLL_ACTIVE_MS = 3000;
 const POLL_BACKOFF_MS = [10000, 20000, 30000];
@@ -18,6 +18,7 @@ const TOMATO_REPLY_FAST_MS = 300;
 const TOMATO_REPLY_SLOW_MS = 1000;
 const TOMATO_REPLY_FAST_WINDOW_MS = 5000;
 const TOMATO_REPLY_QUIET_MS = 1500;
+const HARDWARE_WAIT_REVEAL_MS = 2000;
 // Migration-sensitive API strings live here so a renamed RPC is one edit.
 const COMPUTE_API = Object.freeze({
   enqueue: 'rest/v1/rpc/enqueue_compute_job',
@@ -79,7 +80,7 @@ let replyPollTimer = 0;
 let replyPollInFlight = false;
 let suggestionRound = 0;
 let suggestionStarted = false;
-const $ = (id) => document.getElementById(id);
+const $ = (id) => (typeof document === 'undefined' ? null : document.getElementById(id));
 const MOBILE_CHAT = '(max-width: 760px)';
 
 function mobileChat() {
@@ -135,7 +136,28 @@ function tomatoIntents() {
 }
 
 function updateJobView(job) {
-  if (jobViewsModule) job.view = jobViewsModule.statusView(job);
+  if (jobViewsModule) {
+    job.view = jobViewsModule.statusView(job, {online: state.tomatoOnline, now: Date.now()});
+  }
+}
+
+function scheduleHardwareWaitReveal(job) {
+  if (!job || job.via !== 'hardware' || job._revealTimer) return;
+  if (!['queued', 'compiling'].includes(job.phase)) return;
+  job.waitStartedAt = job.waitStartedAt || Date.now();
+  const remaining = HARDWARE_WAIT_REVEAL_MS - (Date.now() - job.waitStartedAt);
+  if (remaining <= 0) {
+    job.forceQueueReveal = true;
+    return;
+  }
+  job._revealTimer = setTimeout(() => {
+    job._revealTimer = 0;
+    job.forceQueueReveal = true;
+    if (!localJobs.includes(job)) return;
+    if (!['queued', 'compiling'].includes(job.phase) || job.via !== 'hardware') return;
+    updateJobView(job);
+    renderThread();
+  }, remaining + 16);
 }
 
 function bindAppHeight() {
@@ -261,7 +283,8 @@ function tomatoIsBusy() {
   if (!state.peer || !state.peer.is_device) return false;
   if (state.busy || state.loadingThread) return true;
   if (localJobs.some((j) => j.conversation === state.conversation
-    && (['compiling', 'executing'].includes(j.phase) || (j.phase === 'queued' && j.via === 'virtual')))) return true;
+    && (['compiling', 'executing'].includes(j.phase)
+      || (j.phase === 'queued' && (j.via === 'virtual' || j.via === 'hardware'))))) return true;
   if (!state.awaitTomatoAt) return false;
   if (Date.now() - state.awaitTomatoAt > 25000) {
     state.awaitTomatoAt = 0;
@@ -1458,10 +1481,10 @@ function renderThread() {
     const d = new Date(m.created_at);
     t.textContent = isNaN(d) ? '' : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     div.appendChild(t);
-    if (state.peer.is_device && m.sender_id === state.profile?.id) {
+    if (state.peer.is_device && m.sender_id === (state.profile && state.profile.id) && !state.tomatoOnline) {
       const receipt = document.createElement('small');
       receipt.className = 'note-receipt';
-      receipt.textContent = 'Physical note · saved for delivery. Notes appear on Tomato’s screen when it connects; they may not receive a reply.';
+      receipt.textContent = 'Saved for Tomato. It will show on the screen when the machine reconnects.';
       div.append(receipt);
     }
     box.appendChild(div);
@@ -1714,12 +1737,19 @@ function renderJob(job) {
  updateJobView(job);
  const view=job.view||{phase:job.phase||'unknown',voice:'envelop',text:'Operation status unavailable.',technical:'STATUS_UNKNOWN'};
  card.dataset.tone=view.tone||'working';
+ if(job.via==='hardware' && ['queued','compiling','executing'].includes(view.phase)) scheduleHardwareWaitReveal(job);
  const appendReplies=()=>{
-  for(const reply of (job.replies||[])){const bubble=document.createElement('div');bubble.className='virtual-reply';const label=document.createElement('small');label.textContent=job.via==='local'?'Envelop':job.via==='hardware'?'Physical Tomato':job.compute?'Virtual Tomato':'Virtual Tomato · reply';bubble.append(label);const t=document.createElement('div');t.className='virtual-text';t.textContent=reply;bubble.append(t);card.append(bubble);}
+  for(const reply of (job.replies||[])){const bubble=document.createElement('div');bubble.className='virtual-reply';const label=document.createElement('small');label.textContent=job.via==='local'?'Envelop':job.via==='hardware'?'Tomato':job.compute?'Virtual Tomato':'Virtual Tomato · reply';bubble.append(label);const t=document.createElement('div');t.className='virtual-text';t.textContent=reply;bubble.append(t);card.append(bubble);}
  };
  if(view.resultFirst)appendReplies();
+ if(view.chatty){
+  const bubble=document.createElement('div');bubble.className='virtual-reply tomato-typing';
+  const label=document.createElement('small');label.textContent='Tomato';bubble.append(label);
+  bubble.append(typingDots());
+  card.append(bubble);
+ }else{
  const status=document.createElement('div');status.className='job-status job-response';status.dataset.phase=view.phase;
- const liveSignature=JSON.stringify([view.phase,view.text,view.technical,job.replies||[]]);
+ const liveSignature=JSON.stringify([view.phase,view.text,view.technical,job.replies||[],view.chatty||false]);
  const announce=job.liveSignature!==liveSignature;
  job.liveSignature=liveSignature;
  status.setAttribute('role','status');
@@ -1740,6 +1770,7 @@ function renderJob(job) {
   const guidance=document.createElement('span');guidance.className='job-guidance';guidance.textContent=view.guidance;statusCopy.append(guidance);
  }
  status.append(statusCopy);card.append(status);
+ }
  if (!view.resultFirst) appendReplies();
  if(view.tone==='guidance') {
    const actions=document.createElement('div');actions.className='prompt-list';
@@ -1753,12 +1784,12 @@ function renderJob(job) {
    retry.onclick=()=>{if(virtualQueue.length>=4){showError('Let a waiting calculation finish first.');return;} job.phase='queued';job.outcome=null;runVirtual(job);};
    card.append(retry);
  }
- if(view.phase==='queued' && job.via==='hardware' && job.backendId) {
-   const cancel=document.createElement('button');cancel.type='button';cancel.className='prompt-button';cancel.textContent='Cancel queued run';
+ if(view.phase==='queued' && job.via==='hardware' && job.backendId && !view.chatty) {
+   const cancel=document.createElement('button');cancel.type='button';cancel.className='prompt-button';cancel.textContent='Cancel';
    cancel.onclick=async()=>{cancel.disabled=true;try{await cancelHardwareJob(job);}catch(error){showError('Could not confirm cancellation. Check the hardware result before retrying.');cancel.disabled=false;}};
    card.append(cancel);
  }
- if(view.phase!=='succeeded' && view.technical) {
+ if(view.phase!=='succeeded' && view.technical && !view.chatty) {
    const diagnostics=document.createElement('details');diagnostics.className='job-diagnostics';
    const summary=document.createElement('summary');summary.textContent='Technical details';
    const pre=document.createElement('pre');pre.textContent=view.technical+(job.fallbackRaw?'\n'+job.fallbackRaw:'');
@@ -1869,10 +1900,15 @@ async function runHardware(job) {
   // Authenticated sessions can queue while the physical machine is offline. Virtual may
   // follow only a terminal failed/cancelled row; ambiguous jobs never replay.
   job.hardwareAttempt = true; job.virtualSafe = false;
-  job.via = 'hardware'; setJobPhase(job, 'queued');
+  job.via = 'hardware';
+  job.waitStartedAt = Date.now();
+  job.forceQueueReveal = false;
+  setJobPhase(job, 'queued');
   job.hwSeq = (job.hwSeq || 0) + 1;
   const seq = job.hwSeq;
+  scheduleHardwareWaitReveal(job);
   renderThread();
+  syncTyping();
   const alive = () => job.hwSeq === seq && (job.phase === 'queued' || job.phase === 'executing');
   let jobId = null;
   let queuedAt = null;

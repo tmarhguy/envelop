@@ -648,6 +648,8 @@ html.chat-page { height: 100%; }
 .vt-banner button:hover, .chat-composer #vt-preview:hover { background:#244c39;color:#fff; }
 .virtual-reply { align-self:flex-start;background:rgba(100,106,101,0.12);border:0;border-radius:14px;border-bottom-left-radius:3px;margin:6px 0 0;padding:8px 12px;max-width:88%; }
 .virtual-reply>small { display:block;margin-bottom:2px;color:#635d3a;font-size:11px; }
+.virtual-reply.tomato-typing { display:inline-flex; flex-direction:column; gap:6px; min-width:4.5rem; }
+.virtual-reply.tomato-typing .typing-dots { margin:2px 0 0; }
 .help-guide { gap:10px; }
 .help-guide h2 { margin:2px 0 0;font:400 23px/1.2 var(--serif); }
 .help-intro { margin:0;max-width:720px;color:var(--muted);font-size:13px;line-height:1.55; }

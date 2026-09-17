@@ -1,4 +1,4 @@
-import {presentation} from './experience.mjs?v=20260917-premium-2';
+import {presentation} from './experience.mjs?v=20260917-premium-3';
 import {EVENTS, VOICES, selectPersonality} from './personality.mjs?v=20260917-tomato-playground';
 
 export const PHASES = Object.freeze({
@@ -143,4 +143,6 @@ function baseStatusView(job = {}) {
   };
 }
 
-export function statusView(job = {}) { return presentation(job, baseStatusView(job)); }
+export function statusView(job = {}, options = {}) {
+  return presentation(job, baseStatusView(job), options);
+}

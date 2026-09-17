@@ -34,7 +34,27 @@ export function guidanceFor(code, detail = {}) {
   return {title: entry[0], text: entry[1], guidance: detail.guidance || null};
 }
 
-export function presentation(job, view) {
+export const HARDWARE_WAIT_REVEAL_MS = 2000;
+
+export function hardwareWaitAgeMs(job, now = Date.now()) {
+  const started = Number(job?.waitStartedAt)
+    || Date.parse(job?.created_at)
+    || now;
+  return Math.max(0, now - started);
+}
+
+/** Keep the first moments chatty: dots only, unless we already know it is a durable offline queue. */
+export function hardwareWaitFeelsQueued(job, online = true, now = Date.now()) {
+  if (!job || job.via !== 'hardware') return false;
+  if (!['queued', 'compiling'].includes(job.phase)) return false;
+  if (job.forceQueueReveal) return true;
+  if (job.backendId && online === false) return true;
+  return hardwareWaitAgeMs(job, now) >= HARDWARE_WAIT_REVEAL_MS;
+}
+
+export function presentation(job, view, options = {}) {
+  const online = options.online !== false;
+  const now = options.now || Date.now();
   const code = view.event || String(view.technical || '').split(' · ')[0];
   const guide = guidanceFor(code);
   if (guide) return {...view, ...guide, guidance: view.guidance || guide.guidance, tone: 'guidance', pending: false, voice: 'envelop'};
@@ -44,12 +64,35 @@ export function presentation(job, view) {
     return {...view, title: 'Result ready', text: null, tone: 'success'};
   }
   if (view.phase === 'unknown') return {...view, title: 'Waiting for confirmation', tone: 'waiting', text: 'The connection paused before we could confirm the hardware result. Check its status before trying this job again.'};
-  if (view.phase === 'queued' && job.via === 'hardware') return {...view, title: job.backendId ? 'Saved for physical Tomato' : 'Saving your request', tone: 'waiting', text: job.backendId ? 'Your calculation is safely queued. It will run when Tomato and its bridge are available.' : 'Adding this calculation to the hardware queue.', pending: !job.backendId};
+  if (view.phase === 'queued' && job.via === 'hardware') {
+    if (!hardwareWaitFeelsQueued(job, online, now)) {
+      return {...view, title: null, text: null, tone: 'working', pending: true, chatty: true};
+    }
+    if (!online && job.backendId) {
+      return {
+        ...view,
+        title: 'Saved for Tomato',
+        text: 'It will run when Tomato reconnects. You can cancel if you change your mind.',
+        tone: 'waiting',
+        pending: true,
+      };
+    }
+    return {
+      ...view,
+      title: 'Tomato is still working on this',
+      text: job.backendId ? 'Still waiting on the physical machine.' : null,
+      tone: 'waiting',
+      pending: true,
+    };
+  }
   if (code === 'HARDWARE_CANCELLED') return {...view, title: 'Run cancelled', tone: 'waiting', text: null};
   if (view.phase === 'failed') return {...view, title: 'Couldn’t finish this run', tone: 'problem', text: job.via === 'virtual' ? 'Virtual Tomato couldn’t complete this run. Your expression is still available to edit or retry.' : view.text};
   // In-flight: one stable title, no rotating phrases underneath.
   if (view.phase === 'compiling') return {...view, title: 'Reading your request', text: null, tone: 'working'};
-  if (view.phase === 'queued') return {...view, title: job.via === 'hardware' ? 'Waiting for physical Tomato' : 'Queued in Virtual Tomato', text: null, tone: 'working'};
-  if (view.phase === 'executing') return {...view, title: job.via === 'hardware' ? 'Running on physical Tomato' : 'Running in Virtual Tomato', text: null, tone: 'working'};
+  if (view.phase === 'queued') return {...view, title: 'Queued in Virtual Tomato', text: null, tone: 'working'};
+  if (view.phase === 'executing') {
+    if (job.via === 'hardware') return {...view, title: null, text: null, tone: 'working', pending: true, chatty: true};
+    return {...view, title: 'Running in Virtual Tomato', text: null, tone: 'working'};
+  }
   return {...view, title: job.via === 'hardware' ? 'Running on physical Tomato' : 'Running in Virtual Tomato', text: null, tone: 'working'};
 }

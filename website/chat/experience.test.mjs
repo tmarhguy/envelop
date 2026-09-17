@@ -39,14 +39,30 @@ test('unanswered requests present friendly guidance tone', () => {
   assert.equal(view.pending, false);
 });
 
-test('queued hardware jobs keep waiting tone while offline', () => {
-  const view = presentation(
-    {phase: 'queued', via: 'hardware', backendId: 'job-1', compute: true},
+test('queued hardware waits feel like chat before revealing queue copy', () => {
+  const early = presentation(
+    {phase: 'queued', via: 'hardware', backendId: 'job-1', compute: true, waitStartedAt: 1_000},
     {phase: 'queued', voice: 'envelop', text: 'queued', technical: 'QUEUED · HARDWARE', pending: true},
+    {online: true, now: 1_500},
   );
-  assert.equal(view.tone, 'waiting');
-  assert.match(view.title, /Saved for physical Tomato/);
-  assert.match(view.text, /safely queued/);
+  assert.equal(early.chatty, true);
+  assert.equal(early.pending, true);
+  assert.equal(early.title, null);
+
+  const later = presentation(
+    {phase: 'queued', via: 'hardware', backendId: 'job-1', compute: true, waitStartedAt: 1_000},
+    {phase: 'queued', voice: 'envelop', text: 'queued', technical: 'QUEUED · HARDWARE', pending: true},
+    {online: true, now: 3_500},
+  );
+  assert.equal(later.chatty, undefined);
+  assert.match(later.title, /still working/i);
+
+  const offline = presentation(
+    {phase: 'queued', via: 'hardware', backendId: 'job-1', compute: true, waitStartedAt: 1_000},
+    {phase: 'queued', voice: 'envelop', text: 'queued', technical: 'QUEUED · HARDWARE', pending: true},
+    {online: false, now: 1_100},
+  );
+  assert.match(offline.title, /Saved for Tomato/);
 });
 
 test('success and in-flight copy stay stable instead of rotating phrases', () => {
@@ -70,4 +86,11 @@ test('success and in-flight copy stay stable instead of rotating phrases', () =>
   );
   assert.equal(running.title, 'Running in Virtual Tomato');
   assert.equal(running.text, null);
+
+  const physical = presentation(
+    {phase: 'executing', compute: true, via: 'hardware'},
+    {phase: 'executing', voice: 'envelop', text: 'running', technical: 'EXECUTING · HARDWARE', pending: true},
+  );
+  assert.equal(physical.chatty, true);
+  assert.equal(physical.title, null);
 });

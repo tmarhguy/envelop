@@ -56,6 +56,11 @@ test('Tomato replies refresh progressively while the typing state is active', ()
   assert.match(source, /const TOMATO_REPLY_FAST_WINDOW_MS = 5000/);
   assert.match(source, /const TOMATO_REPLY_QUIET_MS = 1500/);
   assert.doesNotMatch(busy, /themCount\(\) > state\.awaitTomatoThem/);
+  assert.match(busy, /j\.phase === 'queued' && \(j\.via === 'virtual' \|\| j\.via === 'hardware'\)/);
+  assert.match(source, /HARDWARE_WAIT_REVEAL_MS = 2000/);
+  assert.match(source, /scheduleHardwareWaitReveal\(/);
+  assert.match(source, /tomato-typing/);
+  assert.match(source, /Saved for Tomato\. It will show on the screen/);
   assert.match(fetch, /state\.awaitTomatoReceived \+= newTomatoMessages/);
   assert.match(fetch, /state\.awaitTomatoReceived >= state\.awaitTomatoExpected/);
   assert.match(fetch, /clearAwaitTomato\(\)/);
