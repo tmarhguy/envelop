@@ -1,20 +1,24 @@
 # Infinix documentation capture originals
 
 These PNG files are sanitized documentation originals captured on 2026-09-16
+and 2026-09-17
 from the current local Envelop website working tree. Mobile captures came from
-Chrome 150 on the connected Infinix X6831 at 1080 × 2460. ADB connection
-details are intentionally omitted. The status strip was removed to exclude
-notification, carrier, and network context. The Chrome address bar remains
-where useful as evidence that the real device browser rendered the local
-working tree. The Android navigation strip was removed except in the Gboard
-image.
+Chrome 150 on the connected Infinix X6831; earlier captures used 1080 × 2460
+output and the latest responsive checks used 450 × 1000. ADB connection
+details are intentionally omitted. Most published captures remove the status
+and navigation strips. The 450 × 1000 responsive-layout checks retain them and
+the loopback address bar as physical-device evidence; the bars contain no
+notification text, carrier name, or unrelated app content.
 
 Chat states were staged in the page's existing DOM and renderer with synthetic
 `Guest` and `Tomato` records. Polling was stopped before staging. No Supabase
 account, profile, conversation, message, compute job, bridge lease, or other
-durable data was created. Times shown in chat are fixed synthetic timestamps.
-These captures prove UI behavior only; they do not prove deployment or physical
-hardware availability.
+durable data was created for those staged captures. The deterministic-followup
+capture used a temporary test profile that was deleted after the test; the
+source-backed question and both answer cards remained browser-local and created
+no message or compute job. Times shown in staged chat are fixed synthetic
+timestamps. These captures prove UI behavior only; they do not prove deployment
+or physical hardware availability.
 
 All originals were decoded and re-encoded as RGB PNGs with Pillow, which removed
 source metadata. Published WebP derivatives are cataloged in
@@ -66,6 +70,23 @@ source metadata. Published WebP derivatives are cataloged in
 - `envelop-name-entry-desktop.png` — 1440 × 1000. Alt: “Desktop Envelop chat name
   entry and example prompts.” Caption: “Current local web-chat entry state at a
   desktop viewport.” Provenance: UI-only headless Chrome capture.
+- `envelop-deterministic-followup-infinix.png` — 1080 × 2207. Alt: “Envelop on
+  an Infinix phone showing a source-backed Tyrone Marhguy project answer reached
+  through a one-click follow-up.” Caption: “Deterministic local answer · reviewed
+  source link · one-click follow-up on a physical Infinix browser.” Provenance:
+  physical-device UI test against the local working tree; temporary profile
+  deleted after capture; no message or compute job created.
+- `envelop-open-compute-infinix.png` — 450 × 1000. Alt: “Envelop’s mobile
+  deterministic open-compute explanation on a physical Infinix phone.” Caption:
+  “The same input branches to Envelop’s inspectable path first, then the
+  generative response space.”
+  Provenance: physical-device UI test against the local working tree with empty
+  browser identity state.
+- `envelop-mobile-hero-infinix.png` — 450 × 1000. Alt: “Envelop’s animated
+  browser recording above the chat name field on a physical Infinix phone.”
+  Caption: “Mobile chat entry · recording first · name field second.”
+  Provenance: physical-device UI test against the local working tree with empty
+  browser identity state.
 
 ## Privacy review
 

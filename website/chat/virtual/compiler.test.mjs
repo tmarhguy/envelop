@@ -18,7 +18,7 @@ const found = candidates.find(p => { try { return existsSync(p); } catch { retur
 
 test('nl_fixtures: controlled language, understood, fail-closed errors', { skip: !found && 'sibling tomato checkout absent' }, () => {
   const fix = JSON.parse(readFileSync(found, 'utf8'));
-  assert.equal(fix.version, 6);
+  assert.equal(fix.version, 7);
   for (const c of fix.compute) {
     const r = compile(c.input);
     assert.ok(r, `${c.input}: expected compute, got chat`);
@@ -26,7 +26,14 @@ test('nl_fixtures: controlled language, understood, fail-closed errors', { skip:
     assert.equal(r.canonical, c.canonical, `${c.input}: canonical`);
   }
   for (const c of fix.chat) assert.equal(compile(c.input), null, `${c.input}: expected chat`);
-  const browserPromotions = new Set(['5 * 3', 'product of 2 and 3', 'what is 10 / 2?']);
+  const browserPromotions = new Set([
+    '5 * 3',
+    'product of 2 and 3',
+    'what is 10 / 2?',
+    'ohj yea, you are so good, ok what is 34 - 2345',
+    'i can teype gibveradklaeira adkn adihe adn adraioerh 345 + nand(2345, 3534, 235)',
+    'whqa it xor of 5 and 3',
+  ]);
   for (const c of fix.errors) {
     if (browserPromotions.has(c.input)) continue;
     assert.throws(() => compile(c.input), e => e.message.includes(c.js_error), `${c.input}: expected /${c.js_error}/`);
@@ -64,6 +71,8 @@ test('structured expression errors retain human-readable messages and safe detai
     min: 2,
     max: 8,
     actual: 1,
+    recoveredOperands: ['1'],
+    recoveredOperators: ['and'],
   });
   assert.match(malformed.message, /two arguments or more/);
 
@@ -100,12 +109,45 @@ test('structured raw /run errors distinguish registers, ranges, and instructions
   assert.match(instruction.message, /Unsupported instruction: DIV/);
 });
 
+test('compiled expressions include a safe trace tree while raw programs do not', () => {
+  const expression = compile('(23 + 19) & 0x3F');
+  assert.deepEqual(expression.ast, {
+    type: 'binary',
+    operator: 'AND',
+    left: {
+      type: 'binary',
+      operator: 'ADD',
+      left: {type: 'literal', value: 23, source: '23'},
+      right: {type: 'literal', value: 19, source: '19'},
+    },
+    right: {type: 'literal', value: 63, source: '0x3F'},
+  });
+  assert.equal(compile('/run; R0=1; RETURN R0').ast, null);
+});
+
+test('partial expressions report safely recovered operands and operators', () => {
+  const trailing = compileError('23 +');
+  assert.equal(trailing.code, 'MALFORMED_EXPRESSION');
+  assert.deepEqual(trailing.details.recoveredOperands, ['23']);
+  assert.deepEqual(trailing.details.recoveredOperators, ['+']);
+
+  const call = compileError('and(5,)');
+  assert.deepEqual(call.details.recoveredOperands, ['5']);
+  assert.deepEqual(call.details.recoveredOperators, ['and']);
+});
+
 test('successful output and ordinary-chat classification remain stable', () => {
   assert.deepEqual(compile('23 + 19'), {
     canonical: '/run\nR0=23\nR1=19\nADD R0,R0,R1\nRETURN R0',
     bytes: [1, 1, 0, 0, 0, 0, 23, 1, 1, 0, 0, 0, 19, 2, 0, 0, 1, 0, 48, 0],
     version: 1,
     understood: '23 + 19',
+    ast: {
+      type: 'binary',
+      operator: 'ADD',
+      left: {type: 'literal', value: 23, source: '23'},
+      right: {type: 'literal', value: 19, source: '19'},
+    },
   });
   for (const message of ['Hello Tomato', 'tomatoes are red', 'meet me after lunch']) {
     assert.equal(compile(message), null);
@@ -130,6 +172,8 @@ test('clear calculations survive harmless conversational filler', () => {
   assert.equal(compileError('so what is 8 + equal to?').code, 'MALFORMED_EXPRESSION');
   assert.equal(compileError('/calc 2 squared + 3').details.token, 'squared');
   assert.equal(compileError('xorr of 5 and 3').details.guidance, 'Closest supported operator: xor.');
+  const noise = compileError('What about his Henson heheh +* 233');
+  assert.doesNotMatch(noise.details.guidance, /Recognized calculation/);
   assert.equal(compile('so what is the weather equal to?'), null);
   assert.equal(compile('cosine is useful'), null);
 });
@@ -142,6 +186,10 @@ test('complete semantic spans execute without confirmation', () => {
   const nested = compile('i can teype gibveradklaeira adkn adihe adn adraioerh 345 + nand(2345, 3534, 235)');
   assert.equal(nested.understood, '345 + ~(((2345 & 3534) & 235))');
   assert.match(nested.canonical, /ADD R0,R0,R1\nRETURN R0$/);
+
+  const prefix = compile('What is or 56, 23, 12');
+  assert.equal(prefix.understood, '(56 | 23) | 12');
+  assert.match(prefix.canonical, /OR R0,R0,R1\nR1=12\nOR R0,R0,R1\nRETURN R0$/);
 });
 
 test('constant multiplication lowers to an ADD graph executed by Tomato', () => {

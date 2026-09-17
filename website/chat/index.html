@@ -21,8 +21,8 @@
 <title>Chat — Envelop</title>
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../style.css?v=20260916">
-<link rel="stylesheet" href="chat.css?v=20260916-bounded-division">
-<script src="chat.js?v=20260916-bounded-division" defer></script>
+<link rel="stylesheet" href="chat.css?v=20260917-progressive-replies-3">
+<script src="chat.js?v=20260917-progressive-replies-3" defer></script>
 </head>
 <body class="chat-page">
 <a class="skip" href="#chat">Skip to chat</a>
@@ -58,18 +58,16 @@
 <main class="wrap chat-main" id="chat">
   <div class="chat-card">
     <div class="chat-welcome" id="chat-welcome" hidden>
+      <a class="chat-mobile-demo" href="../media/envelop-demo.mp4" target="_blank" rel="noopener" aria-label="Watch the full Envelop browser recording">
+        <img src="../media/envelop-demo.gif" width="712" height="480" alt="Animated Envelop walkthrough from the website into a Tomato conversation">
+        <span>Envelop in the browser · tap for the full recording</span>
+      </a>
       <p class="eyebrow"><span class="dot"></span> PEOPLE AND ONE DORM COMPUTER</p>
       <h1>Chat in your browser.</h1>
       <div class="chat-row">
         <input id="chat-name" type="text" maxlength="32" placeholder="Pick a name to enter…" autocomplete="nickname" aria-label="Your name">
         <button id="chat-join" type="button">Enter</button>
       </div>
-      <div class="try-row" aria-label="Try an example">
-        <span>Try:</span>
-        <button type="button" class="try-chip" data-example="Hello, Tomato.">Say hello to Tomato</button>
-        <button type="button" class="try-chip" data-example="What is (57 + 19) AND 0x3F?">What is (57 + 19) AND 0x3F?</button>
-      </div>
-      <p class="try-hint" id="try-hint" aria-live="polite" hidden></p>
       <details class="welcome-more">
         <summary>How it works</summary>
         <div>
@@ -91,10 +89,7 @@
         <div class="chat-empty" id="chat-empty">
           <strong>Choose a conversation.</strong>
           Message a person — or send a note to Tomato.
-          <div class="try-row center" aria-label="Try an example with Tomato">
-            <button type="button" class="try-chip" data-example="Hello, Tomato.">Say hello to Tomato</button>
-            <button type="button" class="try-chip" data-example="What is (57 + 19) AND 0x3F?">Try compute → 12</button>
-          </div>
+          <div class="try-row center" data-suggestions aria-label="Rotating Tomato experiments"></div>
         </div>
         <div id="chat-convo" hidden>
           <div class="chat-peer-bar">
@@ -103,7 +98,7 @@
           </div>
           <div class="chat-notice" id="chat-notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
           <div class="chat-log" id="chat-log">
-            <div class="chat-messages" id="chat-messages" aria-live="polite"></div>
+            <div class="chat-messages" id="chat-messages"></div>
             <div class="chat-typing" id="chat-typing" hidden>
               <div class="chat-msg them typing" role="status" aria-live="polite" aria-label="Tomato is typing">
                 <span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -113,6 +108,7 @@
           <div class="vt-banner" id="vt-banner" hidden>
             <span>Hardware offline — notes queue automatically; compute and explicit previews run in Virtual Tomato.</span>
           </div>
+          <div class="try-row thread-suggestions" data-suggestions aria-label="Quick Tomato messages and operations"></div>
           <div class="chat-composer">
             <input id="chat-draft" type="text" maxlength="256" placeholder="Message" aria-label="Message" autocomplete="off">
             <button type="button" id="vt-preview" title="Runs your draft — or your last message — in Virtual Tomato (labeled virtual, never sent to hardware)">Preview</button>
@@ -123,6 +119,43 @@
     </div>
     <div class="chat-error" id="chat-error" role="alert" aria-atomic="true" hidden></div>
   </div>
+  <section class="open-compute" aria-labelledby="open-compute-title">
+    <div class="section-label"><span>DETERMINISTIC · OPEN COMPUTE</span><span>Rules you can inspect</span></div>
+    <div class="open-compute-heading">
+      <h2 id="open-compute-title">Deterministic by design.</h2>
+      <p>Envelop runs without AI. It was designed as deterministic software around Tomato’s open-compute philosophy: reviewed rules select source-linked answers, while the compiler exposes the program, bytecode, target, and result provenance.</p>
+    </div>
+    <div class="comparison-diagram">
+      <div class="comparison-input"><span>Same input</span><strong>What is (57 + 19) AND 0x3F?</strong></div>
+      <div class="response-compare" aria-label="The same input entering a generative response space and Envelop deterministic route">
+        <article class="response-possibilities">
+          <h3>Generative response space</h3>
+          <div class="response-cloud" aria-label="Many possible generated responses">
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            <strong>many possible outputs</strong>
+          </div>
+          <p>A generative stack maps the input through learned weights or a remote inference service and selects from a broad response space.</p>
+        </article>
+        <article class="response-deterministic">
+          <h3>Envelop’s route for the same task</h3>
+          <ol class="deterministic-track">
+            <li>Input text</li>
+            <li>Reviewed rule</li>
+            <li>Compiled Tomato program</li>
+            <li><span>Labeled result</span><strong>12 · 0x0000000C</strong></li>
+          </ol>
+          <p><strong>One inspectable path</strong><span>The behavior catalog, router, and help stay within a tested 96 KiB source budget, with 0 bytes of model weights.</span></p>
+        </article>
+      </div>
+    </div>
+    <p class="open-compute-note">The same input, state, and version take the same route. Open compute makes the route and evidence inspectable, from a matched answer rule to the bytes Tomato executes.</p>
+    <div class="open-compute-links" aria-label="Inspect Envelop and Tomato">
+      <a href="./knowledge.mjs">Inspect the behavior rules</a>
+      <a href="https://github.com/tmarhguy/tomato/blob/main/docs/nl-grammar.md">Controlled compute grammar</a>
+      <a href="https://tomato.tmarhguy.com/architecture.html">Tomato architecture</a>
+      <a href="https://tomato.tmarhguy.com/verification.html">Verification scope</a>
+    </div>
+  </section>
   <noscript><p>Web chat needs JavaScript. The story behind it is on the <a href="../">main page</a>.</p></noscript>
 </main>
 

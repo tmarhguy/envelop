@@ -10,28 +10,35 @@ import {
 } from './job-view.mjs';
 
 test('operation phases map to compact view models', () => {
-  const compiling = statusView({phase: PHASES.COMPILING});
+  const compiling = statusView({id: 'job-1', phase: PHASES.COMPILING});
   assert.deepEqual(
     {phase: compiling.phase, voice: compiling.voice, pending: compiling.pending, technical: compiling.technical},
     {phase: 'compiling', voice: 'envelop', pending: true, technical: 'COMPILING'},
   );
 
-  const queued = statusView({phase: PHASES.QUEUED, via: 'hardware'});
+  const queued = statusView({id: 'job-1', phase: PHASES.QUEUED, via: 'hardware'});
   assert.equal(queued.voice, 'envelop');
-  assert.equal(queued.technical, 'QUEUED · PHYSICAL');
+  assert.equal(queued.technical, 'QUEUED · HARDWARE');
 
-  const executing = statusView({phase: PHASES.EXECUTING, via: 'virtual'});
+  const executing = statusView({id: 'job-1', phase: PHASES.EXECUTING, via: 'virtual'});
   assert.equal(executing.voice, 'envelop');
-  assert.match(executing.text, /Virtual Tomato is executing/);
+  assert.ok(executing.text.length > 0);
 
-  const succeeded = statusView({phase: PHASES.SUCCEEDED, target: 'Virtual Tomato · browser CPU emulator'});
+  const succeeded = statusView({id: 'job-1', phase: PHASES.SUCCEEDED, target: 'Virtual Tomato · browser CPU emulator'});
   assert.equal(succeeded.resultFirst, true);
-  assert.equal(succeeded.text, null);
+  assert.ok(succeeded.text.length > 0);
   assert.equal(succeeded.technical, 'Virtual Tomato · browser CPU emulator');
 
   const unknown = statusView({phase: PHASES.UNKNOWN});
   assert.equal(unknown.voice, 'envelop');
   assert.match(unknown.technical, /REPLAY_BLOCKED/);
+});
+
+test('phase copy is stable per job and changes its selection key by phase', () => {
+  const first = statusView({id: 'stable-job', phase: PHASES.EXECUTING, via: 'virtual'});
+  assert.deepEqual(statusView({id: 'stable-job', phase: PHASES.EXECUTING, via: 'virtual'}), first);
+  assert.notEqual(statusView({id: 'other-job', phase: PHASES.EXECUTING, via: 'virtual'}).text, undefined);
+  assert.equal(first.technical, 'EXECUTING · VIRTUAL');
 });
 
 test('legacy statuses normalize without changing durable resolution semantics', () => {
@@ -51,8 +58,8 @@ test('unknown words use a friendly local Envelop response', () => {
   const outcome = compileOutcome(error, '/calc 2 squared');
   assert.equal(outcome.voice, 'envelop');
   assert.equal(outcome.event, 'UNKNOWN_TOKEN');
-  assert.equal(outcome.text, 'I can’t help with “squared” yet.');
-  assert.equal(outcome.technical, null);
+  assert.ok(outcome.text.length > 0);
+  assert.equal(outcome.technical, 'UNKNOWN_TOKEN · squared');
   assert.equal(outcome.guidance, 'Try a supported operator or /help.');
   assert.deepEqual(compileOutcome(error, '/calc 2 squared'), outcome);
   assert.equal(compileOutcome(new Error('network'), 'same key'), null);
@@ -65,4 +72,13 @@ test('machine failures use Tomato only after execution', () => {
   assert.equal(statusView({phase: PHASES.FAILED, outcome: fault}).voice, 'tomato');
 
   assert.equal(technicalLine('INVALID_REGISTER', {register: 'R8'}), 'INVALID_REGISTER · R8');
+});
+
+test('partial-expression outcomes expose only recovered syntax', () => {
+  const outcome = compileOutcome({
+    code: 'MALFORMED_EXPRESSION',
+    details: {recoveredOperands: ['23'], recoveredOperators: ['+']},
+  }, '23 +');
+  assert.equal(outcome.voice, 'envelop');
+  assert.equal(outcome.guidance, 'Recovered so far: 23 +.');
 });
