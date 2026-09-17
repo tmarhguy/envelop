@@ -154,7 +154,7 @@ function unknownError(word,prepared){
  const guidance=(hint||'Try numbers, operators like + - * / & | ^ ~, or /help.').trim();
  fail('UNKNOWN_TOKEN',`Unknown word '${word}'. ${guidance}`,{token:word,guidance});
 }
-export function compile(source) {
+export function compile(source, {fuse = true} = {}) {
  if(typeof source!=='string')fail('MALFORMED_EXPRESSION','Use at most 2048 characters.',{reason:'invalid-source-type'});
  if(source.length>2048)fail('OUT_OF_RANGE','Use at most 2048 characters.',{range:'source-length',value:source.length,min:0,max:2048});
   let text=source.trim(),understood=null,ast=null;
@@ -307,7 +307,26 @@ export function compile(source) {
   let rootShown=show(root);if(rootShown.startsWith('(')&&rootShown.endsWith(')'))rootShown=rootShown.slice(1,-1);
   understood=rootShown;
   ast=serializeAst(root);
-  const rr=gen(root);
+  // Fuse only identities represented by installed single-instruction ABI operations.
+  // Operand loads remain real instructions; no host-side result evaluation.
+  const fused = n => {
+   if(n.k==='bin'){
+    const l=fused(n.l), r=fused(n.r);
+    if(n.op==='ADD'){
+     const op={AND:'ANDADD',OR:'ORADD',XOR:'XORADD'}[l.op];
+     if(l.k==='bin'&&op)return {k:'tri',op,args:[l.l,l.r,r]};
+     if(r.k==='bin'&&r.op==='AND')return {k:'tri',op:'MASKADD',args:[l,r.l,r.r]};
+     const swapped={OR:'ORADD',XOR:'XORADD'}[r.op];
+     if(r.k==='bin'&&swapped)return {k:'tri',op:swapped,args:[r.l,r.r,l]};
+    }
+    if((n.op==='AND'||n.op==='OR')&&r.k==='not')return {k:'bin2',op:n.op+'N',args:[l,r.a]};
+    return {...n,l,r};
+   }
+   if(n.k==='not')return {...n,a:fused(n.a)};
+   if(n.args)return {...n,args:n.args.map(fused)};
+   return n;
+  };
+  const rr=gen(fuse?fused(root):root);
   text='/run\n'+lines.concat(`RETURN R${rr}`).join('\n');
  }
  const lines=text.slice(4).split(/[;\n]/).map(s=>s.trim()).filter(Boolean),out=[1];let returned=false;

@@ -1,9 +1,10 @@
-import {Tomato,loadImage,makeFrame} from './tomato-cpu.mjs?v=20260917-fast-virtual-3';
-import {CompileError,compile,hex,normalizeGreeting} from './compiler.mjs?v=20260917-fast-virtual-3';
+import {describeAlu} from './alu.mjs?v=20260917-premium-1';
+import {Tomato,loadImage,makeFrame} from './tomato-cpu.mjs?v=20260917-premium-1';
+import {CompileError,compile,hex,normalizeGreeting} from './compiler.mjs?v=20260917-premium-1';
 self.onmessage=async({data})=>{
  try{
-    const job=compile(data.text);postMessage({kind:'compiled',program:job?.canonical||'Chat text · no assembly program is sent.',hex:hex(job?.bytes||new TextEncoder().encode(data.text)),version:job?'Remote bytecode v1':'UTF-8 chat text',understood:job?.understood||null,ast:job?.ast||null});
-  const response=await fetch(new URL('./tomato-os.bin?v=20260917-fast-virtual-3',import.meta.url));if(!response.ok)throw Error('Virtual firmware could not load.');
+    const job=compile(data.text);postMessage({kind:'compiled',program:job?.canonical||'Chat text · no assembly program is sent.',hex:hex(job?.bytes||new TextEncoder().encode(data.text)),version:job?'Remote bytecode v1':'UTF-8 chat text',understood:job?.understood||null,ast:job?.ast||null,alu:job?describeAlu(job.canonical):null});
+  const response=await fetch(new URL('./tomato-os.bin?v=20260917-premium-1',import.meta.url));if(!response.ok)throw Error('Virtual firmware could not load.');
   const cpu=new Tomato(loadImage(await response.arrayBuffer()));
   cpu.step(200000);cpu.key(30);cpu.step(52500);cpu.key(13);cpu.step(52500);cpu.demo();
   const replies=[];let computeFinished=false,executionFailure=null;cpu.radio.onFrame=f=>{if(f.route!==1)return;if(f.type===8&&!job)replies.push(new TextDecoder().decode(new Uint8Array(f.payload.slice(4))));if(f.type===33){const p=f.payload,v=((p[5]*16777216)+(p[6]<<16)+(p[7]<<8)+p[8])>>>0;computeFinished=true;if(p[4]===0)replies.push(`${v} / 0x${v.toString(16).padStart(8,'0').toUpperCase()}`);else executionFailure={code:'EXECUTION_FAULT',message:`Tomato rejected the job (status ${p[4]}).`,details:{statusByte:p[4]}};}};

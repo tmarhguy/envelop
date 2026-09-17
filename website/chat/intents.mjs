@@ -1,4 +1,4 @@
-import {CARDS, MATCHERS, programIntentFor} from './knowledge.mjs?v=20260917-deterministic-behavior-2';
+import {CARDS, MATCHERS, programIntentFor} from './knowledge.mjs?v=20260917-premium-1';
 
 const freezeTree = value => {
   Object.freeze(value);

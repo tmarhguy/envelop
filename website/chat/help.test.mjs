@@ -13,7 +13,7 @@ import {compile} from './virtual/compiler.mjs';
 
 test('help aliases are explicit and do not swallow ordinary conversation', () => {
   for (const input of [
-    '/help', '/HELP!', 'help', 'Help?', 'what can you do', 'What can you do?',
+    'what cannnnnn u do', '/help', '/HELP!', 'help', 'Help?', 'what can you do', 'What can you do?',
     'Hmm, what else can you do?', 'I mean, what more can you do?',
     'I mean, can u do and more?',
     'If there is and and or and nor in one sentence what happens?',

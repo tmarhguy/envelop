@@ -338,22 +338,22 @@ const baseCards = {
     actions: [ask('What data is stored?', 'What data does Envelop store?'), link('Read privacy details', LINKS.envelopPrivacy), ask('Is this AI?', 'Does Envelop use AI?')],
   },
   thanks: {
-    answer: 'You’re welcome. The useful next step is inspectable: ask another source-backed question, open the documentation, or run a bounded Tomato job.',
+    answer: 'You’re welcome. Try another calculation or explore a Tomato topic whenever you’re ready.',
     provenance: source('Deterministic local response', LINKS.envelopSource),
     actions: [ask('What can I ask?', 'What can you do?'), compute('Run 23 + 19', '23 + 19'), link('Explore Tomato', LINKS.tomato)],
   },
   praise: {
-    answer: 'Thank you. Envelop earns trust through inspectable rules, compiler output, sources, tests, and execution labels.',
+    answer: 'Glad you’re enjoying it. You can inspect the instructions behind every calculation.',
     provenance: source('Deterministic local response', LINKS.envelopSource),
     actions: [ask('Show how it works', 'How does this deterministic chat work?'), link('Inspect the source', LINKS.envelopSource), ask('See verification', 'How is Tomato verified?')],
   },
   frustration: {
-    answer: 'That did not give you a useful route. Try a specific Tomato topic, open the tested examples, or use /help; unsupported requests stay explicit instead of receiving a plausible guess.',
+    answer: 'Let’s make this easier. Start with an example, or ask about a specific part of Tomato. I can help with calculations and the topics listed in Help.',
     provenance: source('Deterministic local response', LINKS.envelopSource),
     actions: [ask('What can I ask?', 'What can you do?'), ask('Browse programs', 'What programs are on Tomato?'), compute('Try a known job', '23 + 19')],
   },
   goodbye: {
-    answer: 'Goodbye. Nothing here needs a generated closing line; Tomato and the source will still be here when you return.',
+    answer: 'See you next time. Your conversation will be here when you return.',
     provenance: source('Deterministic local response', LINKS.envelopSource),
     actions: [link('Explore Tomato', LINKS.tomato), link('Open Envelop home', LINKS.envelop)],
   },

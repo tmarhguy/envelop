@@ -8,7 +8,8 @@ const SUPABASE_KEY = 'sb_publishable_nhog8psQAljHGK3RvIyp-Q_26yCYmsF';
 const DEVICE_ID = '00000000-0000-0000-0000-000000000001';
 const STORE_KEY = 'envelop.web.session.v1';
 const READ_KEY = 'envelop.web.read.v1';
-const ASSET_VERSION = '20260917-fast-virtual-7';
+const ASSET_VERSION = '20260917-premium-2';
+const MODE_KEY = 'envelop.execution-mode.v1';
 const POLL_ACTIVE_MS = 3000;
 const POLL_BACKOFF_MS = [10000, 20000, 30000];
 const BEAT_MS = 15000;
@@ -45,6 +46,7 @@ const state = {
   unchangedPolls: 0,
   searchTimer: 0,
   busy: false,
+  executionMode: 'virtual',
   loadingThread: false,
   scrollToLatest: false,
   awaitTomatoAt: 0,
@@ -62,6 +64,13 @@ let helpGuidePromise = null;
 let helpGuideModule = null;
 let intentsPromise = null;
 let intentsModule = null;
+let experienceModule = null;
+let experiencePromise = null;
+const virtualQueue = [];
+let virtualRunning = false;
+function experience() {
+  return experiencePromise ||= import('./experience.mjs?v=' + ASSET_VERSION).then(module => experienceModule = module);
+}
 const messageTabs = new Map();
 const expandedMessages = new Set();
 let pendingDraft = null;
@@ -69,7 +78,6 @@ let typingTimer = 0;
 let replyPollTimer = 0;
 let replyPollInFlight = false;
 let suggestionRound = 0;
-let suggestionTimer = 0;
 let suggestionStarted = false;
 const $ = (id) => document.getElementById(id);
 const MOBILE_CHAT = '(max-width: 760px)';
@@ -253,7 +261,7 @@ function tomatoIsBusy() {
   if (!state.peer || !state.peer.is_device) return false;
   if (state.busy || state.loadingThread) return true;
   if (localJobs.some((j) => j.conversation === state.conversation
-    && ['compiling', 'queued', 'executing'].includes(j.phase))) return true;
+    && (['compiling', 'executing'].includes(j.phase) || (j.phase === 'queued' && j.via === 'virtual')))) return true;
   if (!state.awaitTomatoAt) return false;
   if (Date.now() - state.awaitTomatoAt > 25000) {
     state.awaitTomatoAt = 0;
@@ -339,7 +347,7 @@ function syncTyping() {
   const sub = document.querySelector('#chat-peer small');
   if (sub && state.peer && state.peer.is_device) {
     if (on) sub.textContent = 'Typing…';
-    else if (mobileChat()) sub.textContent = state.tomatoOnline ? 'Online' : 'Offline';
+    else if (mobileChat()) sub.textContent = state.tomatoOnline ? 'Physical online' : 'Virtual ready';
     else if (state.tomatoOnline) sub.textContent = 'Online · notes appear on Tomato’s screen';
     else sub.textContent = 'Offline · Virtual Tomato available';
   }
@@ -352,9 +360,9 @@ function syncTyping() {
 function syncComposer() {
   const send = $('chat-send');
   if (send) {
-    send.disabled = !!state.busy;
-    send.textContent = state.busy ? 'Sending…' : 'Send';
-    send.setAttribute('aria-busy', String(!!state.busy));
+    send.disabled = !!(state.busy || state.submitting);
+    send.textContent = (state.busy || state.submitting) ? 'Sending…' : (state.peer?.is_device && state.executionMode === 'physical' && !state.tomatoOnline ? 'Queue' : 'Send');
+    send.setAttribute('aria-busy', String(!!(state.busy || state.submitting)));
   }
   const join = $('chat-join');
   if (join) {
@@ -363,7 +371,10 @@ function syncComposer() {
     join.setAttribute('aria-busy', String(!!state.busy));
   }
   const draft = $('chat-draft');
-  if (draft) draft.setAttribute('aria-busy', String(!!state.busy));
+  if (draft) { draft.readOnly = !!(state.busy || state.submitting); draft.setAttribute('aria-busy', String(draft.readOnly)); }
+  for (const id of ['mode-virtual','mode-physical']) {
+    const button = $(id); if (button) button.disabled = !!(state.busy || state.submitting);
+  }
 }
 
 function setBusy(value) {
@@ -376,7 +387,9 @@ function showError(text) {
   const bar = $('chat-error');
   if (!text) { bar.hidden = true; bar.textContent = ''; return; }
   bar.hidden = false;
-  bar.textContent = text;
+  bar.textContent = /failed to fetch|network|load failed|fetch failed|timed? ?out|aborted/i.test(text)
+    ? 'The connection is taking a break. Your draft is still here. Virtual calculations remain available in the current conversation.'
+    : text;
 }
 
 function apiError(data) {
@@ -389,15 +402,22 @@ async function request(path, opts) {
   if (opts.auth !== false && Date.now() > state.expiresAt - 60000) await refresh();
   const headers = { apikey: SUPABASE_KEY, 'Content-Type': 'application/json' };
   if (opts.auth !== false && state.creds) headers.Authorization = 'Bearer ' + state.creds.access_token;
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (opts.signal?.aborted) abort();
+  else opts.signal?.addEventListener('abort', abort, {once:true});
+  const timeout = setTimeout(abort, 15000);
+  try {
   const res = await fetch(SUPABASE_URL + '/' + path, {
     method: opts.body ? 'POST' : 'GET',
     headers,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
-    signal: opts.signal,
+    signal: controller.signal,
   });
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new Error(apiError(data) || 'Envelop network request failed.');
   return data;
+  } finally { clearTimeout(timeout); opts.signal?.removeEventListener('abort', abort); }
 }
 
 function saveCreds(creds) {
@@ -445,6 +465,7 @@ async function restore() {
     state.profile = rows[0] || null;
     if (!state.profile) { renderWelcome(); return; }
     loadRead();
+    loadJobHistory();
     await checkAdmin();
     renderChat();
     startPolling();
@@ -464,6 +485,7 @@ async function enter() {
     if (!state.creds) saveCreds(await request('auth/v1/signup', { auth: false, body: { data: {} } }));
     state.profile = await request('rest/v1/rpc/create_profile', { body: { p_name: name, p_avatar: avatarFor(name) } });
     loadRead();
+    loadJobHistory();
     await checkAdmin();
     renderChat();
     startPolling();
@@ -639,10 +661,27 @@ function timelineItems(messages, jobs, conversation) {
 }
 
 async function send() {
+  if (state.submitting) return;
+  state.submitting = true;
+  syncComposer();
+  try { await sendDraft(); }
+  catch (error) { showError(error.message || 'Could not send. Your draft is still here.'); }
+  finally { state.submitting = false; syncComposer(); if (helpGuideModule) renderSuggestions(helpGuideModule); }
+}
+
+async function sendDraft() {
   const input = $('chat-draft');
-  const body = input.value;
-  if (!body || BufferSafeLength(body) > 256 || state.busy || !state.conversation || !state.peer) return;
+  const body = input.value.trim();
+  if (!body || state.busy || !state.conversation || !state.peer) return;
+  if (BufferSafeLength(body) > 256) { showError('Use at most 256 bytes per message.'); return; }
   if (state.peer.is_device) {
+    const mode = state.executionMode;
+    const rules = await experience();
+    if (/^\/note\s+/i.test(body)) {
+      await queueHardwareNote(body.replace(/^\/note\s+/i, '')); input.value = ''; return;
+    }
+    const conversational = rules.conversationReply(body);
+    if (conversational) { addConversationJob(body, conversational); input.value = ''; showError(''); return; }
     const [guide, intents] = await Promise.all([helpGuide(), tomatoIntents()]);
     const localAnswer = intents.localAnswerFor(body);
     if (localAnswer) {
@@ -657,16 +696,17 @@ async function send() {
       showError('');
       return;
     }
-    if (!tomatoPrintable(body)) {
+    if (mode === 'physical' && !tomatoPrintable(body)) {
       showError('Use 1–256 bytes. Tomato accepts printable ASCII.');
       return;
     }
     let compiled;
-    let compiler;
+    let compiler, alu;
     try {
-      [compiler] = await Promise.all([
+      [compiler, , alu] = await Promise.all([
         import('./virtual/compiler.mjs?v=' + ASSET_VERSION),
         jobViews(),
+        import('./virtual/alu.mjs?v=' + ASSET_VERSION),
       ]);
       compiled = compiler.compile(body);
     } catch (err) {
@@ -694,14 +734,16 @@ async function send() {
     if (compiled) {
       const pendingHardware = localJobs.filter(candidate =>
         candidate.via === 'hardware' && ['queued', 'executing'].includes(candidate.phase)).length;
-      if (state.tomatoOnline && pendingHardware >= 4) {
+      if (mode === 'physical' && pendingHardware >= 4) {
         showError('Four hardware jobs are already waiting. Let one finish before adding another.');
         return;
       }
+      if (mode === 'virtual' && virtualQueue.length >= 4) { showError('Four calculations are already running or waiting. Try again when one finishes.'); return; }
       markSuggestionOperationStarted();
       const job = {id: randomId(), conversation: state.conversation, body,
         name: state.profile.display_name, created_at: new Date().toISOString(),
         program: compiled.canonical,
+        alu: alu.describeAlu(compiled.canonical),
         hex: compiler.hex(compiled.bytes),
         version: 'Remote bytecode v1',
         understood: compiled.understood || null,
@@ -711,9 +753,8 @@ async function send() {
       localJobs.push(job);
       input.value='';showError('');requestLatestScroll();renderThread();
       await new Promise(resolve => setTimeout(resolve, 0));
-      // Hardware first when Tomato is online: the leased bridge runs the same
-      // bytes on the real machine. Offline (or enqueue failure) stays virtual.
-      if (state.tomatoOnline) runHardware(job);
+      // The selected mode owns the route, including when physical Tomato is off.
+      if (mode === 'physical') runHardware(job);
       else runVirtual(job);
       return;
     }
@@ -721,14 +762,18 @@ async function send() {
     // Firmware auto-replies to canonical "Hello": normalize greeting variants
     // (e.g. "Hello, Tomato.") client-side, same as the Virtual Tomato worker.
     const greet = compiler.normalizeGreeting ? compiler.normalizeGreeting(body) : null;
-    if (greet && !state.tomatoOnline) {
+    if (greet && mode === 'virtual') {
       addVirtualGreeting(body);
       input.value = '';
       showError('');
       return;
     }
+    if (!greet && mode === 'virtual') {
+      addGuidanceJob(body);
+      input.value = ''; showError(''); return;
+    }
     if (greet) {
-      markAwaitTomato(4);
+      if (state.tomatoOnline) markAwaitTomato(4);
       setBusy(true);
       try {
         await request('rest/v1/rpc/send_message' , {
@@ -748,7 +793,7 @@ async function send() {
       return;
     }
   }
-  const awaitingTomato = !!(state.peer && state.peer.is_device);
+  const awaitingTomato = !!(state.peer && state.peer.is_device && state.tomatoOnline);
   if (awaitingTomato) markAwaitTomato();
   setBusy(true);
   try {
@@ -811,6 +856,7 @@ async function poll() {
       state.connectionOutcome = views.personalityOutcome(event, event + ':' + leaseKey);
       state.connectionOutcomeUntil = online ? now + 8000 : 0;
     }
+    state.networkIssue = false;
     state.tomatoOnline = online;
     changed = onlineChanged;
     if (state.conversation && state.peer && viewingPeer(state.peer.id) && !state.awaitTomatoAt) {
@@ -825,7 +871,8 @@ async function poll() {
     renderNotice();
   } catch (err) {
     if (err.name !== 'AbortError') {
-      showError(err.message);
+      state.networkIssue = true;
+      renderBanner();
       changed = true;
     }
   } finally {
@@ -1040,6 +1087,13 @@ function renderAdmin() {
   box.append(label, flush);
 }
 
+function insertExample(draft, example, start = draft.length, end = start) {
+  const before = draft.slice(0, start), after = draft.slice(end);
+  const text = (before && !/\s$/.test(before) ? ' ' : '') + example
+    + (after && !/^\s/.test(after) ? ' ' : '');
+  return {value: before + text + after, cursor: before.length + text.length};
+}
+
 function fillDraft(prompt) {
   const input = $('chat-draft');
   if (!input) return;
@@ -1050,7 +1104,26 @@ function fillDraft(prompt) {
 
 async function submitCuratedText(value) {
   const input = $('chat-draft');
-  if (!input || state.busy) return;
+  if (!input || state.busy || state.submitting) return;
+  if (input.value.trim()) {
+    if (helpGuideModule?.isHelpRequest(value)) { await addHelpJob(value); return; }
+    const answer = intentsModule?.localAnswerFor(value);
+    if (answer) { addKnowledgeJob(value, answer); return; }
+    // Natural-language examples insert their parsed expression, not prose inside math.
+    let example = String(value || '');
+    try {
+      const compiler = await import('./virtual/compiler.mjs?v=' + ASSET_VERSION);
+      const parsed = compiler.compile(example);
+      if (parsed?.understood) example = '(' + parsed.understood + ')';
+    } catch { /* malformed examples remain available for deliberate experiments */ }
+    const next = insertExample(input.value, example, input.selectionStart, input.selectionEnd);
+    if (BufferSafeLength(next.value) > 256) { showError('That example would exceed 256 bytes.'); return; }
+    input.value = next.value;
+    input.focus();
+    input.setSelectionRange(next.cursor, next.cursor);
+    showError('');
+    return;
+  }
   input.value = String(value || '');
   showError('');
   await send();
@@ -1067,6 +1140,25 @@ function addKnowledgeJob(body, answer) {
   });
   requestLatestScroll();
   renderThread();
+}
+
+function addConversationJob(body, reply) {
+  const job = {id:randomId(), conversation:state.conversation, body, created_at:new Date().toISOString(),
+    phase:'succeeded', compute:false, via:'local', target:'Envelop · local conversation rules', replies:[reply]};
+  localJobs.push(job); requestLatestScroll(); renderThread();
+}
+
+function addGuidanceJob(body) {
+  const job = {id:randomId(), conversation:state.conversation, body, created_at:new Date().toISOString(),
+    phase:'failed', compute:false, via:'local',
+    outcome:{event:'UNANSWERED_REQUEST',voice:'envelop',technical:'UNANSWERED_REQUEST'}};
+  localJobs.push(job); requestLatestScroll(); renderThread();
+}
+
+async function queueHardwareNote(body) {
+  if (!tomatoPrintable(body)) { throw new Error('Notes for physical Tomato need 1–256 printable ASCII bytes.'); }
+  await request('rest/v1/rpc/send_message', {body:{p_conversation:state.conversation,p_body:body,p_nonce:randomId()}});
+  requestLatestScroll(); await fetchMessages(); showError('');
 }
 
 function addVirtualGreeting(body, preview = false) {
@@ -1206,8 +1298,11 @@ function renderHelpJob(job) {
   const groups = document.createElement('div');
   groups.className = 'help-groups';
   for (const group of job.guide.groups) {
-    const section = document.createElement('section');
-    const heading = document.createElement('h3');
+    const section = document.createElement('details');
+    const groupId = `${job.id}:${group.title}`;
+    section.open = expandedMessages.has(groupId);
+    section.addEventListener('toggle', () => { if (section.open) expandedMessages.add(groupId); else expandedMessages.delete(groupId); });
+    const heading = document.createElement('summary');
     heading.textContent = group.title;
     section.append(heading);
     const list = document.createElement('ul');
@@ -1226,7 +1321,7 @@ function renderHelpJob(job) {
 
   const technical = document.createElement('small');
   technical.className = 'job-technical help-technical';
-  technical.textContent = 'ENVELOP_HELP · LOCAL';
+  technical.textContent = 'Envelop · examples';
   card.append(technical);
   return card;
 }
@@ -1262,11 +1357,11 @@ function renderLegacyFallback(message) {
   );
   const human = document.createElement('div');
   human.className = 'job-human';
-  human.textContent = (outcome.voice === 'tomato' ? 'Tomato: ' : 'Envelop: ') + outcome.text;
+  human.textContent = 'I don’t have a matching answer for that yet. Try a calculation or a question about Tomato.';
   const technical = document.createElement('small');
   technical.className = 'job-technical';
-  technical.textContent = outcome.technical;
-  card.append(human, technical);
+  technical.textContent = 'Let’s try a different way';
+  card.append(technical, human);
   appendFallbackSupport(card, message.body);
   const stamp = document.createElement('time');
   const date = new Date(message.created_at);
@@ -1277,7 +1372,29 @@ function renderLegacyFallback(message) {
   return card;
 }
 
+function saveJobHistory() {
+  if (!state.profile) return;
+  try { sessionStorage.setItem('envelop.jobs.' + state.profile.id, JSON.stringify(localJobs.slice(-100))); } catch { /* storage may be unavailable */ }
+}
+
+function loadJobHistory() {
+  localJobs.length = 0;
+  try {
+    const jobs = JSON.parse(sessionStorage.getItem('envelop.jobs.' + state.profile.id) || '[]');
+    for (const job of jobs.slice(-100)) {
+      if (!job || typeof job.id !== 'string' || typeof job.body !== 'string') continue;
+      if (['compiling','queued','executing'].includes(job.phase)) {
+        job.phase = job.via === 'hardware' ? 'unknown' : 'failed';
+        if (job.phase === 'failed') job.outcome = {voice:'envelop',text:'The page closed before execution finished. Send the expression again to run it.',technical:'VIRTUAL_INTERRUPTED'};
+      }
+      delete job.liveSignature;
+      localJobs.push(job);
+    }
+  } catch { /* invalid or unavailable tab storage */ }
+}
+
 function renderThread() {
+  saveJobHistory();
   const empty = $('chat-empty');
   const wrap = $('chat-convo');
   if (!state.peer) {
@@ -1302,7 +1419,7 @@ function renderThread() {
   const sub = document.createElement('small');
   if (state.peer.is_device) {
     if (tomatoIsBusy()) sub.textContent = 'Typing…';
-    else if (mobileChat()) sub.textContent = state.tomatoOnline ? 'Online' : 'Offline';
+    else if (mobileChat()) sub.textContent = state.tomatoOnline ? 'Physical online' : 'Virtual ready';
     else sub.textContent = state.tomatoOnline
       ? 'Online · notes appear on Tomato’s screen'
       : 'Offline · Virtual Tomato available';
@@ -1341,6 +1458,12 @@ function renderThread() {
     const d = new Date(m.created_at);
     t.textContent = isNaN(d) ? '' : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     div.appendChild(t);
+    if (state.peer.is_device && m.sender_id === state.profile?.id) {
+      const receipt = document.createElement('small');
+      receipt.className = 'note-receipt';
+      receipt.textContent = 'Physical note · saved for delivery. Notes appear on Tomato’s screen when it connects; they may not receive a reply.';
+      div.append(receipt);
+    }
     box.appendChild(div);
   }
   box.dataset.conv = String(state.conversation || '');
@@ -1354,133 +1477,29 @@ function renderThread() {
 }
 
 function renderNotice() {
-  const n = $('chat-notice');
-  const restored = state.tomatoOnline
-    && state.connectionOutcome
-    && state.connectionOutcome.event === 'HARDWARE_RESTORED'
-    && Date.now() < state.connectionOutcomeUntil;
-  if (state.peer && state.peer.is_device && (!state.tomatoOnline || restored)) {
-    n.hidden = false;
-    n.innerHTML = '';
-    const outcome = state.connectionOutcome;
-    const text = document.createElement('span');
-    text.textContent = outcome
-      ? outcome.text
-      : 'Hardware Tomato is offline. Notes queue and deliver when its bridge is back.';
-    n.append(text);
-    if (outcome) {
-      const technical = document.createElement('small');
-      technical.textContent = outcome.technical;
-      n.append(technical);
-    }
-  } else {
-    n.hidden = true;
-  }
+  const notice = $('chat-notice');
+  if (notice) notice.hidden = true;
   renderBanner();
 }
 
-function renderBanner() {
-  const bar = $('vt-banner');
-  if (bar) bar.hidden = !(state.profile && !$('chat-grid').hidden && state.peer && state.peer.is_device && !state.tomatoOnline);
-  // Preview is always available for Tomato: virtual-only, labeled, never queued.
-  const preview = $('vt-preview');
-  if (preview) preview.hidden = !(state.profile && !$('chat-grid').hidden && state.peer && state.peer.is_device);
+function selectExecutionMode(mode) {
+  if (state.submitting || state.busy) return;
+  state.executionMode = mode === 'physical' ? 'physical' : 'virtual';
+  try { localStorage.setItem(MODE_KEY, state.executionMode); } catch {}
+  renderBanner(); syncComposer();
 }
 
-async function previewDraft() {
-  const input = $('chat-draft');
-  let body = input.value;
-  if (!body && state.conversation) {
-    const me = state.profile && state.profile.id;
-    const last = [...state.messages].reverse().find(m => m.sender_id === me);
-    if (last) body = last.body;
+function renderBanner() {
+  const control = $('execution-mode');
+  if (!control) return;
+  control.hidden = !(state.profile && !$('chat-grid').hidden && state.peer?.is_device);
+  for (const mode of ['virtual','physical']) {
+    $(`mode-${mode}`).setAttribute('aria-pressed', String(state.executionMode === mode));
   }
-  const [guide, intents] = await Promise.all([helpGuide(), tomatoIntents()]);
-  const localAnswer = intents.localAnswerFor(body);
-  if (localAnswer) {
-    addKnowledgeJob(body, localAnswer);
-    input.value = '';
-    showError('');
-    return;
-  }
-  if (guide.isHelpRequest(body)) {
-    await addHelpJob(body);
-    input.value = '';
-    showError('');
-    return;
-  }
-  if (!body || !state.conversation || !state.peer) {
-    showError('Type a message first, then preview it in Virtual Tomato.');
-    if (input) input.focus();
-    return;
-  }
-  let compiled, hex, greeting;
-  try {
-    const [m] = await Promise.all([import('./virtual/compiler.mjs?v=' + ASSET_VERSION), jobViews()]);
-    compiled = m.compile(body); hex = m.hex; greeting = m.normalizeGreeting ? m.normalizeGreeting(body) : null;
-  } catch (err) {
-    const outcome = jobViewsModule && jobViewsModule.compileOutcome(err, body);
-    if (!outcome) { showError(err.message); return; }
-    const failedJob = {
-      id: randomId(),
-      conversation: state.conversation,
-      body,
-      name: state.profile.display_name,
-      created_at: new Date().toISOString(),
-      compute: true,
-      preview: true,
-      phase: 'failed',
-      outcome,
-    };
-    updateJobView(failedJob);
-    localJobs.push(failedJob);
-    input.value = '';
-    showError('');
-    requestLatestScroll();
-    renderThread();
-    return;
-  }
-  if (compiled) {
-    const job = {
-      id: randomId(),
-      conversation: state.conversation,
-      body,
-      name: state.profile.display_name,
-      created_at: new Date().toISOString(),
-      program: compiled.canonical,
-      hex: hex(compiled.bytes),
-      version: 'Remote bytecode v1',
-      understood: compiled.understood || null,
-      ast: compiled.ast || null,
-      phase: 'queued',
-      compute: true,
-      preview: true,
-    };
-    updateJobView(job);
-    localJobs.push(job);
-    input.value = '';
-    showError('');
-    requestLatestScroll();
-    renderThread();
-    runVirtual(job);
-    return;
-  }
-  if (greeting) {
-    addVirtualGreeting(body, true);
-    input.value = '';
-    showError('');
-    return;
-  }
-  const job = {id: randomId(), conversation: state.conversation, body,
-    name: state.profile.display_name, created_at: new Date().toISOString(),
-    program: 'Chat text · no assembly program is sent.',
-    hex: hex(new TextEncoder().encode(body)),
-    version: 'UTF-8 chat text', understood: null,
-    phase:'queued', compute:false, preview:true};
-  updateJobView(job);
-  localJobs.push(job);
-  input.value='';showError('');requestLatestScroll();renderThread();
-  runVirtual(job);
+  const description = experienceModule?.modeDescription(state.executionMode, state.tomatoOnline);
+  if (description) $('mode-description').textContent = state.networkIssue && state.executionMode === 'physical'
+    ? 'Connection paused. Existing queued requests stay saved; new requests need a connection.' : description;
+  syncComposer();
 }
 
 async function leave() {
@@ -1501,6 +1520,8 @@ function forget() {
   if (state.creds) {
     request('rest/v1/rpc/leave_network', { body: {} }).catch(() => {});
   }
+  try { sessionStorage.removeItem('envelop.jobs.' + state.profile?.id); } catch {}
+  localJobs.length = 0;
   try { localStorage.removeItem(STORE_KEY); } catch (e) { /* ignore */ }
   stopPolling();
   state.creds = null; state.profile = null; state.peer = null;
@@ -1573,7 +1594,7 @@ function renderSuggestions(module) {
   for (const [index, row] of [...document.querySelectorAll('[data-suggestions]')].entries()) {
     row.innerHTML = '';
     const lead = document.createElement('span');
-    lead.textContent = 'Try:';
+    lead.textContent = $('chat-draft')?.value.trim() ? 'Insert:' : 'Try:';
     row.append(lead);
     const input = $('chat-draft') ? $('chat-draft').value : '';
     for (const suggestion of module.selectSuggestions({session: `${session}:${index}`, day, input, round: suggestionRound, started: suggestionStarted, count: 4})) {
@@ -1582,6 +1603,7 @@ function renderSuggestions(module) {
       chip.className = 'try-chip';
       chip.dataset.example = suggestion.prompt;
       chip.textContent = suggestion.label;
+      chip.title = `${module.isHelpRequest(suggestion.prompt) ? 'Show help' : input.trim() ? 'Insert into draft' : 'Run now'}: ${suggestion.prompt}`;
       row.append(chip);
       bindTryChip(chip);
     }
@@ -1598,6 +1620,7 @@ function markSuggestionOperationStarted() {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', () => {
+    try { state.executionMode = localStorage.getItem(MODE_KEY) === 'physical' ? 'physical' : 'virtual'; } catch {}
     try { suggestionStarted = sessionStorage.getItem('envelop.suggestions.started') === '1'; } catch (e) { /* private mode */ }
     $('chat-join').addEventListener('click', enter);
     $('chat-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') enter(); });
@@ -1617,7 +1640,8 @@ if (typeof window !== 'undefined') {
     });
     $('chat-forget').addEventListener('click', forget);
     $('chat-leave').addEventListener('click', leave);
-    $('vt-preview').addEventListener('click', previewDraft);
+    $('mode-virtual').addEventListener('click', () => selectExecutionMode('virtual'));
+    $('mode-physical').addEventListener('click', () => selectExecutionMode('physical'));
     $('chat-back').addEventListener('click', () => {
       if (history.state && history.state.envelopPane === 'thread') history.back();
       else closeThread();
@@ -1650,27 +1674,20 @@ if (typeof window !== 'undefined') {
         if (event.key === 'Escape') { menu.open = false; menu.querySelector('summary').focus(); }
       });
     }
-    Promise.all([jobViews(), helpGuide(), tomatoIntents()])
+    Promise.all([jobViews(), helpGuide(), tomatoIntents(), experience()])
       .then(([, guide]) => {
         renderSuggestions(guide);
         if (state.profile) renderThread();
       })
       .catch(() => { /* surfaced when the related action is used */ });
-    suggestionTimer = window.setInterval(() => {
-      if (!document.hidden && state.profile && !$('chat-grid').hidden && helpGuideModule) {
-        suggestionRound += 1;
-        renderSuggestions(helpGuideModule);
-      }
-    }, 6000);
     window.addEventListener('pagehide', () => {
-      clearInterval(suggestionTimer);
       stopReplyPolling();
     }, {once: true});
     restore();
   });
 }
 
-if (typeof module !== 'undefined') module.exports = { avatarFor, computeResolution, randomId, resultTrace, timelineItems };
+if (typeof module !== 'undefined') module.exports = { avatarFor, computeResolution, randomId, resultTrace, timelineItems, insertExample };
 
 
 // All rendering uses textContent. Program/hex never become executable markup.
@@ -1696,8 +1713,9 @@ function renderJob(job) {
  }
  updateJobView(job);
  const view=job.view||{phase:job.phase||'unknown',voice:'envelop',text:'Operation status unavailable.',technical:'STATUS_UNKNOWN'};
+ card.dataset.tone=view.tone||'working';
  const appendReplies=()=>{
-  for(const reply of (job.replies||[])){const bubble=document.createElement('div');bubble.className='virtual-reply';const label=document.createElement('small');label.textContent=job.via==='hardware'?'Physical Tomato':job.compute?'Virtual Tomato':'Virtual Tomato · reply';bubble.append(label);const t=document.createElement('div');t.className='virtual-text';t.textContent=reply;bubble.append(t);card.append(bubble);}
+  for(const reply of (job.replies||[])){const bubble=document.createElement('div');bubble.className='virtual-reply';const label=document.createElement('small');label.textContent=job.via==='local'?'Envelop':job.via==='hardware'?'Physical Tomato':job.compute?'Virtual Tomato':'Virtual Tomato · reply';bubble.append(label);const t=document.createElement('div');t.className='virtual-text';t.textContent=reply;bubble.append(t);card.append(bubble);}
  };
  if(view.resultFirst)appendReplies();
  const status=document.createElement('div');status.className='job-status job-response';status.dataset.phase=view.phase;
@@ -1710,11 +1728,12 @@ function renderJob(job) {
  if(announce&&job.replies&&job.replies.length)status.setAttribute('aria-label',[view.text,...job.replies].filter(Boolean).join(' '));
  if(view.pending)status.append(typingDots());
  const statusCopy=document.createElement('span');statusCopy.className='job-response-copy';
+ if(view.title){const title=document.createElement('strong');title.className='response-title';title.textContent=view.title;statusCopy.append(title);}
  if(view.text){
   const human=document.createElement('span');human.className='job-human';
-  human.textContent=(view.voice==='tomato'?'Tomato: ':'Envelop: ')+view.text;statusCopy.append(human);
+  human.textContent=view.text;statusCopy.append(human);
  }
- if(view.technical){
+ if(view.technical && view.phase==='succeeded'){
   const technical=document.createElement('small');technical.className='job-technical';technical.textContent=view.technical;statusCopy.append(technical);
  }
  if(view.guidance){
@@ -1722,17 +1741,57 @@ function renderJob(job) {
  }
  status.append(statusCopy);card.append(status);
  if (!view.resultFirst) appendReplies();
- if(job.fallbackRaw)appendFallbackSupport(card,job.fallbackRaw);
+ if(view.tone==='guidance') {
+   const actions=document.createElement('div');actions.className='prompt-list';
+   const edit=document.createElement('button');edit.type='button';edit.className='prompt-button';edit.textContent='Edit request';
+   edit.onclick=()=>{if($('chat-draft').value.trim()) { showError('Your draft is still here. Finish it or clear it before editing this request.'); $('chat-draft').focus(); } else fillDraft(job.body);};
+   actions.append(edit,renderPromptButton('/help','Explore examples'),renderPromptButton('23 + 19','Try 23 + 19'));
+   card.append(actions);
+ }
+ if(view.phase==='failed' && view.tone==='problem' && job.via==='virtual') {
+   const retry=document.createElement('button');retry.type='button';retry.className='prompt-button';retry.textContent='Retry virtually';
+   retry.onclick=()=>{if(virtualQueue.length>=4){showError('Let a waiting calculation finish first.');return;} job.phase='queued';job.outcome=null;runVirtual(job);};
+   card.append(retry);
+ }
+ if(view.phase==='queued' && job.via==='hardware' && job.backendId) {
+   const cancel=document.createElement('button');cancel.type='button';cancel.className='prompt-button';cancel.textContent='Cancel queued run';
+   cancel.onclick=async()=>{cancel.disabled=true;try{await cancelHardwareJob(job);}catch(error){showError('Could not confirm cancellation. Check the hardware result before retrying.');cancel.disabled=false;}};
+   card.append(cancel);
+ }
+ if(view.phase!=='succeeded' && view.technical) {
+   const diagnostics=document.createElement('details');diagnostics.className='job-diagnostics';
+   const summary=document.createElement('summary');summary.textContent='Technical details';
+   const pre=document.createElement('pre');pre.textContent=view.technical+(job.fallbackRaw?'\n'+job.fallbackRaw:'');
+   diagnostics.append(summary,pre);card.append(diagnostics);
+ }
    if (view.phase==='failed' && job.compute && job.hardwareAttempt && job.virtualSafe && !(job.replies&&job.replies.length)) {
      const note=document.createElement('p');note.className='job-status hardware-fallback';
      const copy=document.createElement('span');
-     copy.textContent='The durable hardware job is terminal — nothing will replay later.';
+     copy.textContent='This hardware run has ended. You can start a separate virtual run.';
      const fb=document.createElement('button');fb.type='button';fb.textContent='Run in Virtual Tomato';
      fb.onclick=()=>{job.hwSeq=(job.hwSeq||0)+1;job.phase='queued';job.outcome=null;job.via=null;job.hardwareAttempt=false;job.virtualSafe=false;updateJobView(job);runVirtual(job);};
      note.append(copy,fb);card.append(note);
    }
+ if(view.phase==='unknown' && job.backendId){
+   const check=document.createElement('button');check.type='button';check.className='prompt-button';check.textContent='Check hardware result';
+   check.onclick=async()=>{
+     check.disabled=true;
+     try {
+       const row=await request(COMPUTE_API.read,{body:{p_job:job.backendId}});
+       if(row.status==='completed')completeHardwareJob(job,row);
+       else if(['failed','cancelled'].includes(row.status)){
+         job.virtualSafe=true;
+         failJobWithEnvelop(job,row.result_text||'The physical job is terminal.','HARDWARE_JOB_TERMINAL');
+       }else showError('This hardware job is still pending. It has not been replayed.');
+       renderThread();
+     }catch(error){showError(error.message);check.disabled=false;}
+   };
+   card.append(check);
+ }
  if(!job.program&&!job.hex)return card;
   const det=document.createElement('details');det.className='job-exec';
+ det.open=expandedMessages.has(job.id);
+ det.addEventListener('toggle',()=>{if(det.open)expandedMessages.add(job.id);else expandedMessages.delete(job.id);});
  const sum=document.createElement('summary');sum.textContent='View execution';det.append(sum);
  const block=(label,value)=>{
   if(value===undefined||value===null||value==='')return;
@@ -1745,6 +1804,7 @@ function renderJob(job) {
  if(job.compute){
   block('Tomato program · '+job.version,job.program);
  }
+ if(job.alu)block('Native ALU · f(A,B,C) + g(A,B,C) + cin',job.alu);
  if(job.ast)block('Expression tree',JSON.stringify(job.ast,null,2));
  block(job.compute?('Encoded bytes · '+job.version):'Encoded bytes · UTF-8 chat text',job.hex||'');
  block('Selected target',job.target||(job.via==='virtual'?'Virtual Tomato · browser CPU emulator':job.via==='hardware'?'Durable hardware route · awaiting completion':'Not selected yet'));
@@ -1785,17 +1845,29 @@ function completeHardwareJob(job, row) {
   const result = row && row.result_text;
   const statusByte = tomatoStatus(result);
   if (statusByte !== null) {
-    failJobWithPersonality(job, 'EXECUTION_FAULT', {statusByte}, job.id + ':status:' + statusByte);
+    job.virtualSafe = true;
+    failJobWithPersonality(job, 'EXECUTION_FAULT', {statusByte, guidance: statusByte === 1 ? 'The physical firmware rejected an opcode. Update Tomato OS to match this compiler, or explicitly run this job virtually.' : 'The physical machine rejected this program; no result was returned.'}, job.id + ':status:' + statusByte);
     return;
   }
   job.replies = [result || 'Tomato completed the job.'];
   job.target = 'Physical Tomato · durable hardware job';
   setJobPhase(job, 'succeeded');
 }
+async function cancelHardwareJob(job) {
+  const row=await request(COMPUTE_API.cancel,{body:{p_job:job.backendId}});
+  if(row.status==='completed') { job.hwSeq=(job.hwSeq||0)+1; completeHardwareJob(job,row); }
+  else if(['cancelled','failed'].includes(row.status)) {
+    job.hwSeq=(job.hwSeq||0)+1;
+    job.virtualSafe=true;
+    job.outcome=jobViewsModule.fixedOutcome({text:'This queued run was cancelled. Nothing will run from it later.',code:'HARDWARE_CANCELLED'});
+    setJobPhase(job,'failed');
+  } else showError('Tomato has already picked up this run. Wait for its result before running it again.');
+  renderThread();
+}
+
 async function runHardware(job) {
-  // Only authenticated online sessions enter the durable queue. Virtual may
+  // Authenticated sessions can queue while the physical machine is offline. Virtual may
   // follow only a terminal failed/cancelled row; ambiguous jobs never replay.
-  if (!state.tomatoOnline) { runVirtual(job); return; }
   job.hardwareAttempt = true; job.virtualSafe = false;
   job.via = 'hardware'; setJobPhase(job, 'queued');
   job.hwSeq = (job.hwSeq || 0) + 1;
@@ -1839,6 +1911,8 @@ async function runHardware(job) {
     });
     jobId = enq && enq.id;
     if (!jobId) throw new Error('Hardware submission could not be confirmed.');
+    job.backendId = jobId;
+    renderThread();
     queuedAt = Date.now();
     for (;;) {
       const queuedFor = Math.max(0, Date.now() - queuedAt);
@@ -1852,7 +1926,7 @@ async function runHardware(job) {
       } catch (e) {
         pollingFailures += 1;
         job.pollingDelayed = true;
-        if (pollingFailures >= 3) renderThread();
+        if (pollingFailures >= 3) { setJobPhase(job, 'unknown'); renderThread(); return; }
         continue;
       }
       if (!alive()) return;
@@ -1889,12 +1963,24 @@ async function runHardware(job) {
 }
 function runVirtual(job) {
  if(job.phase!=='queued'&&job.phase!=='compiling')return;
- job.via='virtual';setJobPhase(job,'queued');renderThread();
- const worker=new Worker('./virtual/worker.mjs?v='+ASSET_VERSION,{type:'module'});
+ if(virtualQueue.includes(job))return;
+ job.via='virtual';job.target='Virtual Tomato · browser CPU emulator';setJobPhase(job,'queued');
+ virtualQueue.push(job);renderThread();pumpVirtualQueue();
+}
+function pumpVirtualQueue() {
+ if(virtualRunning||!virtualQueue.length)return;
+ virtualRunning=true;executeVirtual(virtualQueue[0]);
+}
+function executeVirtual(job) {
+ job.via='virtual';job.target='Virtual Tomato · browser CPU emulator';setJobPhase(job,'queued');renderThread();
+ let worker;
+ try { worker=new Worker('./virtual/worker.mjs?v='+ASSET_VERSION,{type:'module'}); }
+ catch (error) { failJobWithEnvelop(job,'Could not start Virtual Tomato. '+error.message,'VIRTUAL_WORKER_ERROR');virtualQueue.shift();virtualRunning=false;renderThread();pumpVirtualQueue();return; }
  const timer=setTimeout(()=>{if(job.phase==='executing')failJobWithPersonality(job,'TIMEOUT',{},job.id+':virtual-timeout');else failJobWithEnvelop(job,'Could not start Virtual Tomato in time.','VIRTUAL_START_TIMEOUT');finish();},30000);
- function finish(){clearTimeout(timer);worker.terminate();renderThread();}
+ let finished=false;
+ function finish(){if(finished)return;finished=true;clearTimeout(timer);worker.terminate();virtualQueue.shift();virtualRunning=false;renderThread();pumpVirtualQueue();}
  worker.onerror=()=>{failJobWithEnvelop(job,'Could not start Virtual Tomato. Reload the page and try again.','VIRTUAL_WORKER_ERROR');finish();};
- worker.onmessage=async({data})=>{if(data.kind==='compiled'){job.program=data.program;job.hex=data.hex;job.version=data.version;if(data.understood)job.understood=data.understood;if(data.ast)job.ast=data.ast;renderThread();}
+ worker.onmessage=async({data})=>{if(finished)return;try{if(data.kind==='compiled'){job.program=data.program;job.hex=data.hex;job.version=data.version;if(data.understood)job.understood=data.understood;if(data.ast)job.ast=data.ast;if(data.alu)job.alu=data.alu;renderThread();}
  else if(data.kind==='phase'&&data.phase==='executing'){setJobPhase(job,'executing');renderThread();}
  else if(data.kind==='result'){
   const guide=await helpGuide();
@@ -1918,6 +2004,6 @@ function runVirtual(job) {
    else if(job.phase==='executing')failJobWithPersonality(job,'EXECUTION_FAULT',error.details,job.id+':virtual-fault');
    else failJobWithEnvelop(job,error.message||'Virtual Tomato could not start.','VIRTUAL_EXECUTION_ERROR');
    finish();
- }};
- worker.postMessage({text:job.body,name:job.name});
+ }}catch(error){failJobWithEnvelop(job,'Could not read the virtual result.','VIRTUAL_RESULT_ERROR');finish();}};
+ try{worker.postMessage({text:job.body,name:job.name});}catch(error){failJobWithEnvelop(job,'Could not start the virtual run.','VIRTUAL_WORKER_ERROR');finish();}
 }

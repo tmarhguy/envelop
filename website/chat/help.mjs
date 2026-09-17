@@ -8,7 +8,7 @@ const freezeTree = value => {
 
 export const HELP_GUIDE = freezeTree({
   title: 'What Envelop can ask Tomato to do',
-  intro: 'Choose any reviewed action to run it immediately. Compute keeps the same Physical or Virtual Tomato labels as the Send button.',
+  intro: 'Choose an example to run it when your draft is empty, or insert it at the cursor while you type. Results always name the machine that ran them.',
   groups: [
     {
       title: 'Arithmetic',
@@ -29,8 +29,8 @@ export const HELP_GUIDE = freezeTree({
     {
       title: 'Composed logic',
       options: [
-        {label: 'Dual-LUT XOR then AND', prompt: 'xorand(0xF0, 0xAA, 0x0F)'},
-        {label: 'Mask then add', prompt: 'maskadd(0xFF, 7, 9)'},
+        {label: 'XOR sum + triple AND', prompt: 'xorand(0xF0, 0xAA, 0x0F)'},
+        {label: 'A + masked B and C', prompt: 'maskadd(0xFF, 7, 9)'},
         {label: 'AND-not', prompt: 'andn(0xFF, 0x0F)'},
       ],
     },
@@ -158,7 +158,8 @@ export function isHelpRequest(value) {
   const text = String(value || '').trim().replace(/\s+/g, ' ');
   if (/^\/help[?.!]*$/i.test(text) || /^(?:help|what can you do)[?.!]*$/i.test(text)) return true;
   const lead = /^(?:(?:hmm|okay|ok|well|so|i mean)[,.]?\s*)*/i;
-  const core = text.replace(lead, '');
+  const core = text.replace(lead, '').replace(/([a-z])\1{2,}/gi, '$1');
+  if (/^what can (?:you|u|tomato) do[?.!]*$/i.test(core)) return true;
   if (/^what (?:else|more) can\b/i.test(core)) return true;
   if (/^can (?:you|u|tomato) do (?:anything|any|and)?\s*more\b/i.test(core)) return true;
 

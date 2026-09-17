@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync, statSync } = require('node:fs');
 const { join } = require('node:path');
-const { computeResolution, randomId, resultTrace, timelineItems } = require('./chat.js');
+const { computeResolution, randomId, resultTrace, timelineItems, insertExample } = require('./chat.js');
 
 test('UUID generation works when randomUUID is unavailable', () => {
   const source = {
@@ -63,19 +63,22 @@ test('Tomato replies refresh progressively while the typing state is active', ()
   assert.doesNotMatch(replyPoll, /refreshInbox|search\(|device_bridges/);
   assert.match(source, /viewingPeer\(state\.peer\.id\) && !state\.awaitTomatoAt/);
   assert.match(source, /await fetchMessages\(\);\s*scheduleReplyPoll\(\)/);
-  assert.match(source, /if \(greet\) \{\s*markAwaitTomato\(4\)/);
+  assert.match(source, /if \(greet\) \{\s*if \(state\.tomatoOnline\) markAwaitTomato\(4\)/);
 });
 
-test('offline greetings use an immediate named Virtual Tomato rule', () => {
+test('virtual mode greets immediately and physical mode still reaches Tomato', () => {
   const source = readFileSync(join(__dirname, 'chat.js'), 'utf8');
-  const sendFlow = source.slice(source.indexOf('async function send()'), source.indexOf('async function leave()'));
+  const sendFlow = source.slice(source.indexOf('async function sendDraft()'), source.indexOf('function pollingDelay'));
   const greeting = source.slice(source.indexOf('function addVirtualGreeting'), source.indexOf('function renderPromptButton'));
-  assert.match(sendFlow, /if \(greet && !state\.tomatoOnline\) \{\s*addVirtualGreeting\(body\)/);
-  assert.ok(sendFlow.indexOf('if (greet && !state.tomatoOnline)') < sendFlow.indexOf('if (greet) {'));
+  assert.match(source, /MODE_KEY = 'envelop\.execution-mode\.v1'/);
+  assert.match(source, /executionMode: 'virtual'/);
+  assert.match(sendFlow, /if \(greet && mode === 'virtual'\) \{\s*addVirtualGreeting\(body\)/);
+  assert.match(sendFlow, /if \(state\.tomatoOnline\) markAwaitTomato\(4\)/);
   assert.match(greeting, /fullName\.split\(\/\\s\+\/\)\[0\]/);
   assert.match(greeting, /Virtual Tomato · deterministic greeting rule/);
   assert.match(greeting, /Hello, \$\{firstName\}! I'm Virtual Tomato\./);
-  assert.match(sendFlow, /if \(greeting\) \{\s*addVirtualGreeting\(body, true\)/);
+  assert.match(source, /rules\.conversationReply\(body\)/);
+  assert.match(source, /addGuidanceJob\(body\)/);
 });
 
 test('virtual fallback keeps its copy and action visibly separated', () => {
@@ -118,16 +121,18 @@ test('execution details place the expression tree after Tomato assembly', () => 
   assert.ok(details.indexOf("block('Expression tree'") < details.indexOf("block(job.compute?('Encoded bytes"));
 });
 
-test('compiled previews stay on the explicitly virtual path', () => {
+test('execution mode owns virtual versus physical compute routing', () => {
   const source = readFileSync(join(__dirname, 'chat.js'), 'utf8');
-  const preview = source.slice(
-    source.indexOf('async function previewDraft()'),
-    source.indexOf('async function leave()'),
-  );
-  assert.match(preview, /preview: true/);
-  assert.match(preview, /runVirtual\(job\)/);
-  assert.doesNotMatch(preview, /\bsend\(\)/);
-  assert.ok(preview.indexOf('intents.localAnswerFor(body)') < preview.indexOf('m.compile(body)'));
+  const html = readFileSync(join(__dirname, 'index.html'), 'utf8');
+  const sendFlow = source.slice(source.indexOf('async function sendDraft()'), source.indexOf('function pollingDelay'));
+  assert.match(html, /id="execution-mode"/);
+  assert.match(html, /id="mode-virtual"/);
+  assert.match(html, /id="mode-physical"/);
+  assert.match(source, /function selectExecutionMode\(/);
+  assert.match(source, /MODE_KEY = 'envelop\.execution-mode\.v1'/);
+  assert.match(sendFlow, /if \(mode === 'physical'\) runHardware\(job\);\s*else runVirtual\(job\)/);
+  assert.match(sendFlow, /virtualQueue\.length >= 4/);
+  assert.match(source, /card\.dataset\.tone=view\.tone/);
 });
 
 test('virtual compute stops when Tomato returns instead of replaying demo waits', () => {
@@ -233,5 +238,60 @@ test('minimal suggestions live inside the active chat instead of name entry', ()
   assert.match(css, /\.thread-suggestions \.try-chip \{[\s\S]*?min-width: 0;[\s\S]*?white-space: nowrap;/);
   assert.match(css, /\.hardware-fallback \{ gap:6px; \}/);
   assert.ok(source.indexOf('pendingHardware >= 4') < source.indexOf('markSuggestionOperationStarted()'));
-  assert.match(source, /window\.setInterval\(\(\) => \{[\s\S]*?renderSuggestions\(helpGuideModule\);[\s\S]*?\}, 6000\)/);
+  assert.doesNotMatch(source, /\}, 6000\)/, 'suggestions do not move under the pointer');
+});
+
+test('example insertion preserves a draft and replaces only its selection', () => {
+  assert.deepEqual(insertExample('23 + ', 'xnor(5, 3)'), {value:'23 + xnor(5, 3)',cursor:15});
+  assert.deepEqual(insertExample('23 + 19', '7',5,7), {value:'23 + 7',cursor:6});
+  assert.equal(insertExample('abc', '/help',0,0).value,'/help abc');
+});
+
+test('reload preserves results and never replays interrupted hardware work', () => {
+  const vm = require('node:vm');
+  const storage = new Map();
+  const context = vm.createContext({module:{exports:{}},sessionStorage:{
+    setItem:(k,v)=>storage.set(k,v), getItem:k=>storage.get(k),
+  }});
+  vm.runInContext(readFileSync(join(__dirname,'chat.js'),'utf8'),context);
+  const result = vm.runInContext(`
+    state.profile={id:'test'};
+    localJobs.push(
+      {id:'done',body:'23+19',phase:'succeeded',replies:['42']},
+      {id:'physical',body:'7+8',phase:'executing',via:'hardware',backendId:'durable-id'},
+      {id:'virtual',body:'9+1',phase:'queued',via:'virtual'}
+    );
+    saveJobHistory(); loadJobHistory();
+    JSON.stringify(localJobs);
+  `,context);
+  const jobs=JSON.parse(result);
+  assert.equal(jobs[0].replies[0],'42');
+  assert.equal(jobs[1].phase,'unknown');
+  assert.equal(jobs[1].backendId,'durable-id');
+  assert.equal(jobs[2].phase,'failed');
+  assert.equal(jobs[2].outcome.technical,'VIRTUAL_INTERRUPTED');
+});
+
+test('lost hardware polling becomes unknown without virtual replay', async () => {
+  const vm = require('node:vm');
+  const views = await import('./job-view.mjs');
+  const context = vm.createContext({module:{exports:{}},setTimeout:fn=>fn(),views});
+  vm.runInContext(readFileSync(join(__dirname,'chat.js'),'utf8'),context);
+  await vm.runInContext(`
+    jobViewsModule=views;
+    state.tomatoOnline=true;
+    renderThread=()=>{};
+    let readAttempts=0;
+    request=async path=>{
+      if(path===COMPUTE_API.enqueue)return {id:'durable-id'};
+      readAttempts++;
+      throw Error('Connection lost');
+    };
+    runVirtual=()=>{throw Error('Unsafe replay');};
+    var testJob={id:'job',body:'1+2',conversation:'conversation',hex:'01',phase:'compiling'};
+    runHardware(testJob);
+  `,context);
+  assert.equal(vm.runInContext('testJob.phase',context),'unknown');
+  assert.equal(vm.runInContext('testJob.backendId',context),'durable-id');
+  assert.equal(vm.runInContext('readAttempts',context),3);
 });

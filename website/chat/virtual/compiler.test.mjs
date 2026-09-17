@@ -20,7 +20,7 @@ test('nl_fixtures: controlled language, understood, fail-closed errors', { skip:
   const fix = JSON.parse(readFileSync(found, 'utf8'));
   assert.equal(fix.version, 7);
   for (const c of fix.compute) {
-    const r = compile(c.input);
+    const r = compile(c.input, {fuse: false});
     assert.ok(r, `${c.input}: expected compute, got chat`);
     assert.equal(r.understood, c.understood, `${c.input}: understood`);
     assert.equal(r.canonical, c.canonical, `${c.input}: canonical`);

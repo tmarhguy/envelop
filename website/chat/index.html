@@ -21,8 +21,8 @@
 <title>Chat — Envelop</title>
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../style.css?v=20260916">
-<link rel="stylesheet" href="chat.css?v=20260917-comparison-track">
-<script src="chat.js?v=20260917-fast-virtual-7" defer></script>
+<link rel="stylesheet" href="chat.css?v=20260917-premium-2">
+<script src="chat.js?v=20260917-premium-2" defer></script>
 </head>
 <body class="chat-page">
 <a class="skip" href="#chat">Skip to chat</a>
@@ -105,19 +105,22 @@
               </div>
             </div>
           </div>
-          <div class="vt-banner" id="vt-banner" hidden>
-            <span>Hardware offline — notes queue automatically; compute and explicit previews run in Virtual Tomato.</span>
+          <div class="execution-mode" id="execution-mode" hidden>
+            <div class="mode-options" role="group" aria-label="Execution mode">
+              <button type="button" id="mode-virtual" aria-pressed="true">Virtual</button>
+              <button type="button" id="mode-physical" aria-pressed="false">Physical</button>
+            </div>
+            <p id="mode-description" aria-live="polite">Runs here in your browser. Available even when physical Tomato is off.</p>
           </div>
           <div class="try-row thread-suggestions" data-suggestions aria-label="Quick Tomato messages and operations"></div>
           <div class="chat-composer">
-            <input id="chat-draft" type="text" maxlength="256" placeholder="Message" aria-label="Message" autocomplete="off">
-            <button type="button" id="vt-preview" title="Runs your draft — or your last message — in Virtual Tomato (labeled virtual, never sent to hardware)">Preview</button>
+            <input id="chat-draft" type="text" maxlength="256" placeholder="Try 23 + 19, say hello, or ask for help" aria-label="Message" aria-describedby="mode-description" autocomplete="off">
             <button class="chat-send" id="chat-send" type="button">Send</button>
           </div>
         </div>
       </section>
     </div>
-    <div class="chat-error" id="chat-error" role="alert" aria-atomic="true" hidden></div>
+    <div class="chat-error" id="chat-error" role="status" aria-atomic="true" hidden></div>
   </div>
   <section class="open-compute" aria-labelledby="open-compute-title">
     <div class="section-label"><span>DETERMINISTIC · OPEN COMPUTE</span><span>Rules you can inspect</span></div>

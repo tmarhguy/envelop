@@ -1,3 +1,4 @@
+import {presentation} from './experience.mjs?v=20260917-premium-2';
 import {EVENTS, VOICES, selectPersonality} from './personality.mjs?v=20260917-tomato-playground';
 
 export const PHASES = Object.freeze({
@@ -52,7 +53,11 @@ export function personalityOutcome(event, key, details = {}) {
 
 export function compileOutcome(error, key) {
   if (!error || !compileEvents.has(error.code)) return null;
-  return personalityOutcome(error.code, key, error.details);
+  const base = personalityOutcome(error.code, key, error.details);
+  return Object.freeze({
+    ...base,
+    guidance: error.details?.guidance || base.guidance || error.message || null,
+  });
 }
 
 export function fixedOutcome({voice = VOICES.ENVELOP, text, code, details}) {
@@ -72,7 +77,7 @@ export function normalizePhase(job = {}) {
   return PHASES.UNKNOWN;
 }
 
-export function statusView(job = {}) {
+function baseStatusView(job = {}) {
   const phase = normalizePhase(job);
   const stableKey = `${job.id || job.body || 'job'}:${phase}`;
   const lifecycle = event => selectPersonality({event, key: stableKey});
@@ -87,7 +92,7 @@ export function statusView(job = {}) {
     return {
       phase,
       voice: selected.voice,
-      text: selected.text,
+      text: job.compute === false ? 'Reply ready.' : selected.text,
       technical: job.target || null,
       pending: false,
       resultFirst: true,
@@ -137,3 +142,5 @@ export function statusView(job = {}) {
     resultFirst: false,
   };
 }
+
+export function statusView(job = {}) { return presentation(job, baseStatusView(job)); }
