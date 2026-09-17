@@ -9,6 +9,15 @@ export class CompileError extends Error {
  }
 }
 const fail=(code,message,details)=>{throw new CompileError(code,message,details);};
+export function serializeAst(node, depth = 0) {
+ if(!node||typeof node!=='object'||depth>32)return null;
+ if(node.k==='const')return {type:'literal',value:node.v,source:node.raw};
+ if(node.k==='reg')return {type:'register',name:`R${node.r}`};
+ if(node.k==='not')return {type:'unary',operator:'NOT',operand:serializeAst(node.a,depth+1)};
+ if(node.k==='bin')return {type:'binary',operator:node.op,left:serializeAst(node.l,depth+1),right:serializeAst(node.r,depth+1)};
+ if(node.k==='tri'||node.k==='bin2')return {type:'call',operator:node.op,arguments:node.args.map(argument=>serializeAst(argument,depth+1))};
+ return null;
+}
 // Greeting normalization: every hi/hey/hello variant addressed to Tomato
 // becomes canonical "Hello", the only greeting the OS auto-replies to.
 // Null when the text is not a greeting. Shared by web chat and the worker.
@@ -104,6 +113,13 @@ function expandOf(s,depth=0){
  else made=`${name}(${expanded.join(', ')})`;
  return expandOf(s.slice(0,m.index)+made+rest.slice(consumed),depth+1);
 }
+function expandPrefixCall(s){
+ const m=s.match(/^(plus|minus|and|or|xor|nand|nor|xnor|not|product|times)\s+(.+)$/i);
+ if(!m)return s;
+ const args=m[2].split(',').map(part=>part.trim()).filter(Boolean);
+ const valid=m[1].toLowerCase()==='not'?args.length===1:args.length>=2&&args.length<=8;
+ return valid?`${m[1]}(${args.join(', ')})`:s;
+}
 function editDist(a,b){
  if(Math.abs(a.length-b.length)>1)return 2;
  if(a===b)return 0;
@@ -128,7 +144,8 @@ function unknownHint(prepared,word){
   if(/\d/.test(prefix))break;
   const rest=words.slice(i).join(' ');
   const candidate=usefulEnvelope(stripShells(rest));
-  try{if(compile(candidate))return ` Recognized calculation: ${candidate}.`;}catch{continue;}
+  const hasOperation=/[+*/\-&|^~]|\b(?:plus|minus|and|or|xor|nand|nor|xnor|not|product|times)\b/i.test(candidate);
+  try{if(hasOperation&&compile(candidate))return ` Recognized calculation: ${candidate}.`;}catch{continue;}
  }
  return '';
 }
@@ -140,10 +157,10 @@ function unknownError(word,prepared){
 export function compile(source) {
  if(typeof source!=='string')fail('MALFORMED_EXPRESSION','Use at most 2048 characters.',{reason:'invalid-source-type'});
  if(source.length>2048)fail('OUT_OF_RANGE','Use at most 2048 characters.',{range:'source-length',value:source.length,min:0,max:2048});
-  let text=source.trim(),understood=null;
+  let text=source.trim(),understood=null,ast=null;
  if(!/^\/run\b/i.test(text)) {
   const prepared=usefulEnvelope(stripShells(text.replace(/^\/calc\s+/i,'')));
-  let expr=expandOf(prepared);
+  let expr=expandPrefixCall(expandOf(prepared));
    const FN={plus:'+',minus:'-',and:'&',or:'|',xor:'^',nand:'&',nor:'|',xnor:'^',product:'*',times:'*'};
    const NEG=new Set(['nand','nor','xnor']);
    const head=/\b(plus|minus|and|or|xor|nand|nor|xnor|not|product|times|andn|orn|maskadd|xorand|andadd|oradd|xoradd)\s*\(/i;
@@ -163,18 +180,18 @@ export function compile(source) {
     if(nest)fail('MALFORMED_EXPRESSION','Function needs two arguments or more (up to eight), like and(45, 34).',{reason:'unclosed-function',operation:name});
     const args=splitArgs(s.slice(m.index+m[0].length,j-1));
     if(name==='not'){
-      if(args.length!==1||!args[0])fail('MALFORMED_EXPRESSION','Function not needs exactly one argument, like not(5).',{reason:'wrong-argument-count',operation:name,expected:1,actual:args.filter(Boolean).length});
+      if(args.length!==1||!args[0])fail('MALFORMED_EXPRESSION','Function not needs exactly one argument, like not(5).',{reason:'wrong-argument-count',operation:name,expected:1,actual:args.filter(Boolean).length,recoveredOperands:args.filter(Boolean),recoveredOperators:[name]});
       const made=`~(${expandFn(args[0],depth+1)})`;
       return before+made+expandFn(s.slice(j),depth,true);
     }
     if(name==='maskadd'||name==='xorand'||name==='andadd'||name==='oradd'||name==='xoradd'||name==='andn'||name==='orn'){
       const need=(name==='andn'||name==='orn')?2:3;
-      if(args.length!==need||args.some(a=>!a))fail('MALFORMED_EXPRESSION',`Function ${name} needs exactly ${need===2?'two':'three'} arguments, like ${name}(${need===2?'6, 3':'1, 2, 3'}).`,{reason:'wrong-argument-count',operation:name,expected:need,actual:args.filter(Boolean).length});
+      if(args.length!==need||args.some(a=>!a))fail('MALFORMED_EXPRESSION',`Function ${name} needs exactly ${need===2?'two':'three'} arguments, like ${name}(${need===2?'6, 3':'1, 2, 3'}).`,{reason:'wrong-argument-count',operation:name,expected:need,actual:args.filter(Boolean).length,recoveredOperands:args.filter(Boolean),recoveredOperators:[name]});
       const ea=args.map(a=>expandFn(a,depth+1));
       const made=`${name}(${ea.join(', ')})`;
       return before+made+expandFn(s.slice(j),depth,true);
     }
-    if(args.length<2||args.length>8||args.some(a=>!a))fail('MALFORMED_EXPRESSION','Function needs two arguments or more (up to eight), like and(45, 34).',{reason:'wrong-argument-count',operation:name,min:2,max:8,actual:args.filter(Boolean).length});
+    if(args.length<2||args.length>8||args.some(a=>!a))fail('MALFORMED_EXPRESSION','Function needs two arguments or more (up to eight), like and(45, 34).',{reason:'wrong-argument-count',operation:name,min:2,max:8,actual:args.filter(Boolean).length,recoveredOperands:args.filter(Boolean),recoveredOperators:[name]});
     const fold=args.slice(1).reduce((acc,a)=>`(${acc} ${FN[name]} ${expandFn(a,depth+1)})`,expandFn(args[0],depth+1));
     const made=NEG.has(name)?`~(${fold})`:fold;
     return before+made+expandFn(s.slice(j),depth,true);
@@ -192,6 +209,11 @@ export function compile(source) {
    else unknownError(w,prepared);
   }
   const tokens=expr.match(/0x[\da-f]+|0b[01]+|\d+|[A-Za-z_][A-Za-z0-9_]*|[()*+/\-&|^~]|\S/gi)||[];
+  if(['+','-','*','/','&','|','^',','].includes(tokens.at(-1))){
+   const recoveredOperands=tokens.filter(token=>/^(?:0x[\da-f]+|0b[01]+|\d+|R[0-7])$/i.test(token));
+   const recoveredOperators=tokens.filter(token=>/^[+*/\-&|^]$/.test(token));
+   fail('MALFORMED_EXPRESSION','That expression is missing an operand.',{reason:'missing-right-operand',recoveredOperands,recoveredOperators});
+  }
   let i=0;const lines=[],free=[7,6,5,4,3,2,1,0].filter(r=>!reserved.has(r)),prec={'|':1,'^':2,'&':3,'+':4,'-':4,'*':5,'/':5};
   const OPM={'+':'ADD','-':'SUB','*':'MUL','/':'DIV','&':'AND','|':'OR','^':'XOR'},SYM={ADD:'+',SUB:'-',MUL:'*',DIV:'/',AND:'&',OR:'|',XOR:'^'};
   const TRI={maskadd:'MASKADD',xorand:'XORAND',andadd:'ANDADD',oradd:'ORADD',xoradd:'XORADD'};
@@ -284,6 +306,7 @@ export function compile(source) {
   if(i!==tokens.length){const t=tokens[i];if(t==='%')fail('UNSUPPORTED_OPERATION',`'${t}' is not installed. Tomato runs + - * / & | ^ ~.`,{operation:t});fail('MALFORMED_EXPRESSION','Unsupported expression. Try 23 + 19.',{reason:'trailing-token'});}
   let rootShown=show(root);if(rootShown.startsWith('(')&&rootShown.endsWith(')'))rootShown=rootShown.slice(1,-1);
   understood=rootShown;
+  ast=serializeAst(root);
   const rr=gen(root);
   text='/run\n'+lines.concat(`RETURN R${rr}`).join('\n');
  }
@@ -308,5 +331,5 @@ export function compile(source) {
   else fail('INVALID_INSTRUCTION','Unsupported instruction: '+op,{instruction:op,reason:'unsupported'});
  }
   if(!returned)fail('INVALID_INSTRUCTION','End the program with RETURN R0 (or another register).',{instruction:'RETURN',reason:'missing'});
-  return {canonical:text,bytes:out,version:1,understood};
+  return {canonical:text,bytes:out,version:1,understood,ast};
 }

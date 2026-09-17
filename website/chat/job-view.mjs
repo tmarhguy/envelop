@@ -1,4 +1,4 @@
-import {EVENTS, VOICES, selectPersonality} from './personality.mjs?v=20260916-bounded-division';
+import {EVENTS, VOICES, selectPersonality} from './personality.mjs?v=20260917-tomato-playground';
 
 export const PHASES = Object.freeze({
   COMPILING: 'compiling',
@@ -36,26 +36,22 @@ export function technicalLine(code, details = {}) {
 
 export function personalityOutcome(event, key, details = {}) {
   const selected = selectPersonality({event, key});
+  const recovered = [
+    ...(details.recoveredOperands || []),
+    ...(details.recoveredOperators || []),
+  ];
   return Object.freeze({
     voice: selected.voice,
     event,
     text: selected.text,
     technical: technicalLine(event, details),
-    guidance: details.guidance || null,
+    guidance: details.guidance
+      || (recovered.length ? `Recovered so far: ${recovered.join(' ')}.` : null),
   });
 }
 
 export function compileOutcome(error, key) {
   if (!error || !compileEvents.has(error.code)) return null;
-  if (error.code === EVENTS.UNKNOWN_TOKEN && error.details?.token) {
-    return Object.freeze({
-      voice: VOICES.ENVELOP,
-      event: error.code,
-      text: `I can’t help with “${error.details.token}” yet.`,
-      technical: null,
-      guidance: error.details.guidance || null,
-    });
-  }
   return personalityOutcome(error.code, key, error.details);
 }
 
@@ -78,6 +74,8 @@ export function normalizePhase(job = {}) {
 
 export function statusView(job = {}) {
   const phase = normalizePhase(job);
+  const stableKey = `${job.id || job.body || 'job'}:${phase}`;
+  const lifecycle = event => selectPersonality({event, key: stableKey});
   if (phase === PHASES.FAILED) {
     return {...(job.outcome || fixedOutcome({
       text: 'The operation could not be completed.',
@@ -85,45 +83,47 @@ export function statusView(job = {}) {
     })), phase, pending: false, resultFirst: false};
   }
   if (phase === PHASES.SUCCEEDED) {
+    const selected = lifecycle(EVENTS.RESULT_RETURNED);
     return {
       phase,
-      voice: null,
-      text: null,
+      voice: selected.voice,
+      text: selected.text,
       technical: job.target || null,
       pending: false,
       resultFirst: true,
     };
   }
   if (phase === PHASES.COMPILING) {
+    const selected = lifecycle(EVENTS.INTERPRETING);
     return {
       phase,
       voice: VOICES.ENVELOP,
-      text: 'Translating this calculation for Tomato.',
+      text: selected.text,
       technical: 'COMPILING',
       pending: true,
       resultFirst: false,
     };
   }
   if (phase === PHASES.QUEUED) {
+    const event = job.via === 'hardware' ? EVENTS.SENDING_TO_HARDWARE : EVENTS.EXPRESSION_READY;
+    const selected = lifecycle(event);
     return {
       phase,
       voice: VOICES.ENVELOP,
-      text: job.via === 'hardware'
-        ? 'The durable job is queued for physical Tomato.'
-        : 'Preparing Virtual Tomato.',
-      technical: job.via === 'hardware' ? 'QUEUED · PHYSICAL' : 'QUEUED · VIRTUAL',
+      text: selected.text,
+      technical: job.via === 'hardware' ? 'QUEUED · HARDWARE' : 'QUEUED · VIRTUAL',
       pending: true,
       resultFirst: false,
     };
   }
   if (phase === PHASES.EXECUTING) {
+    const event = job.via === 'hardware' ? EVENTS.PHYSICAL_EXECUTION : EVENTS.VIRTUAL_EXECUTION;
+    const selected = lifecycle(event);
     return {
       phase,
       voice: VOICES.ENVELOP,
-      text: job.via === 'hardware'
-        ? 'Physical Tomato is executing the job.'
-        : 'Virtual Tomato is executing the job.',
-      technical: job.via === 'hardware' ? 'EXECUTING · PHYSICAL' : 'EXECUTING · VIRTUAL',
+      text: selected.text,
+      technical: job.via === 'hardware' ? 'EXECUTING · HARDWARE' : 'EXECUTING · VIRTUAL',
       pending: true,
       resultFirst: false,
     };

@@ -14,21 +14,21 @@ import {
 const eventValues = Object.values(EVENTS);
 const toneValues = Object.values(TONES);
 
-test('tone bands are exactly 60/25/10/5', () => {
+test('tone bands are exactly 70/20/8/2', () => {
   assert.deepEqual(TONE_BANDS.map(({tone, weight}) => [tone, weight]), [
-    [TONES.DIRECT, 60],
-    [TONES.LIGHTLY_PLAYFUL, 25],
-    [TONES.HARDWARE_SPECIFIC, 10],
-    [TONES.MEMORABLE, 5],
+    [TONES.DIRECT, 70],
+    [TONES.LIGHTLY_PLAYFUL, 20],
+    [TONES.HARDWARE_SPECIFIC, 8],
+    [TONES.MEMORABLE, 2],
   ]);
 
   const counts = Object.fromEntries(toneValues.map(tone => [tone, 0]));
   for (let roll = 0; roll < 100; roll++) counts[toneForRoll(roll)]++;
   assert.deepEqual(counts, {
-    [TONES.DIRECT]: 60,
-    [TONES.LIGHTLY_PLAYFUL]: 25,
-    [TONES.HARDWARE_SPECIFIC]: 10,
-    [TONES.MEMORABLE]: 5,
+    [TONES.DIRECT]: 70,
+    [TONES.LIGHTLY_PLAYFUL]: 20,
+    [TONES.HARDWARE_SPECIFIC]: 8,
+    [TONES.MEMORABLE]: 2,
   });
 });
 
@@ -73,6 +73,12 @@ test('voice ownership prevents untruthful attribution', () => {
     EVENTS.INVALID_INSTRUCTION,
     EVENTS.HARDWARE_OFFLINE,
     EVENTS.HARDWARE_RESTORED,
+    EVENTS.INTERPRETING,
+    EVENTS.EXPRESSION_READY,
+    EVENTS.SENDING_TO_HARDWARE,
+    EVENTS.PHYSICAL_EXECUTION,
+    EVENTS.VIRTUAL_EXECUTION,
+    EVENTS.RESULT_RETURNED,
   ]) {
     assert.equal(voiceForEvent(event), VOICES.ENVELOP);
   }

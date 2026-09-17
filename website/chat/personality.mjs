@@ -7,6 +7,12 @@ export const VOICES = Object.freeze({
 });
 
 export const EVENTS = Object.freeze({
+  INTERPRETING: 'INTERPRETING',
+  EXPRESSION_READY: 'EXPRESSION_READY',
+  SENDING_TO_HARDWARE: 'SENDING_TO_HARDWARE',
+  PHYSICAL_EXECUTION: 'PHYSICAL_EXECUTION',
+  VIRTUAL_EXECUTION: 'VIRTUAL_EXECUTION',
+  RESULT_RETURNED: 'RESULT_RETURNED',
   UNKNOWN_TOKEN: 'UNKNOWN_TOKEN',
   UNANSWERED_REQUEST: 'UNANSWERED_REQUEST',
   MALFORMED_EXPRESSION: 'MALFORMED_EXPRESSION',
@@ -22,18 +28,18 @@ export const EVENTS = Object.freeze({
 });
 
 export const TONES = Object.freeze({
-  DIRECT: 'direct',
-  LIGHTLY_PLAYFUL: 'lightly_playful',
-  HARDWARE_SPECIFIC: 'hardware_specific',
+  DIRECT: 'graceful',
+  LIGHTLY_PLAYFUL: 'characterful',
+  HARDWARE_SPECIFIC: 'hardware_mail_metaphor',
   MEMORABLE: 'memorable',
 });
 
-// Inclusive lower bounds make the 100 possible rolls exactly 60/25/10/5.
+// Inclusive lower bounds make the 100 possible rolls exactly 70/20/8/2.
 export const TONE_BANDS = Object.freeze([
-  Object.freeze({tone: TONES.DIRECT, start: 0, end: 59, weight: 60}),
-  Object.freeze({tone: TONES.LIGHTLY_PLAYFUL, start: 60, end: 84, weight: 25}),
-  Object.freeze({tone: TONES.HARDWARE_SPECIFIC, start: 85, end: 94, weight: 10}),
-  Object.freeze({tone: TONES.MEMORABLE, start: 95, end: 99, weight: 5}),
+  Object.freeze({tone: TONES.DIRECT, start: 0, end: 69, weight: 70}),
+  Object.freeze({tone: TONES.LIGHTLY_PLAYFUL, start: 70, end: 89, weight: 20}),
+  Object.freeze({tone: TONES.HARDWARE_SPECIFIC, start: 90, end: 97, weight: 8}),
+  Object.freeze({tone: TONES.MEMORABLE, start: 98, end: 99, weight: 2}),
 ]);
 
 const e = EVENTS;
@@ -41,6 +47,42 @@ const t = TONES;
 
 const rawCatalogs = {
   [VOICES.ENVELOP]: {
+    [e.INTERPRETING]: {
+      [t.DIRECT]: ['Reading the expression.', 'Interpreting what you sent.', 'Working out the requested expression.'],
+      [t.LIGHTLY_PLAYFUL]: ['Let me untangle that.', 'Finding the calculation inside your message.', 'Giving that expression a careful read.'],
+      [t.HARDWARE_SPECIFIC]: ['Opening the envelope and parsing its contents.', 'Reading the message before building a program.', 'Sorting the expression before delivery.'],
+      [t.MEMORABLE]: ['First, the message must become meaning.', 'I am tracing the shape of your request.', 'The expression is becoming a program.'],
+    },
+    [e.EXPRESSION_READY]: {
+      [t.DIRECT]: ['The expression is ready.', 'The Tomato program is ready.', 'Translation is complete.'],
+      [t.LIGHTLY_PLAYFUL]: ['That parsed cleanly.', 'Expression understood. Program prepared.', 'The calculation has taken shape.'],
+      [t.HARDWARE_SPECIFIC]: ['The program is packed and ready to send.', 'The encoded program is ready for its route.', 'The envelope now contains Tomato bytes.'],
+      [t.MEMORABLE]: ['Meaning has become machine code.', 'The request now has a runnable form.', 'The expression is ready to meet the machine.'],
+    },
+    [e.SENDING_TO_HARDWARE]: {
+      [t.DIRECT]: ['Sending the durable job to the hardware route.', 'The hardware job is queued.', 'Submitting the program to the verified hardware route.'],
+      [t.LIGHTLY_PLAYFUL]: ['The hardware route has mail.', 'The device route is next.', 'Your program is waiting for the hardware.'],
+      [t.HARDWARE_SPECIFIC]: ['The encoded envelope is in the durable hardware queue.', 'The bridge route has a durable job to deliver.', 'The program is queued for the verified hardware route.'],
+      [t.MEMORABLE]: ['The program has left the browser for the machine.', 'A durable route now carries the calculation.', 'The envelope is sealed; the verified device route is its destination.'],
+    },
+    [e.PHYSICAL_EXECUTION]: {
+      [t.DIRECT]: ['The physical machine is executing the program.', 'The hardware executor is running the job.', 'The durable hardware job is running.'],
+      [t.LIGHTLY_PLAYFUL]: ['The hardware has the calculation now.', 'The real machine is at work.', 'The hardware accepted the program.'],
+      [t.HARDWARE_SPECIFIC]: ['The verified bridge reports the durable job running.', 'Execution is active on the physical hardware route.', 'The durable executor has claimed the job.'],
+      [t.MEMORABLE]: ['The program is now real electrical work.', 'The machine has taken over from the message.', 'The hardware is carrying the expression to its answer.'],
+    },
+    [e.VIRTUAL_EXECUTION]: {
+      [t.DIRECT]: ['Virtual Tomato is executing the program.', 'The browser emulator is running the job.', 'Virtual execution is in progress.'],
+      [t.LIGHTLY_PLAYFUL]: ['Virtual Tomato has the calculation.', 'The browser machine is at work.', 'Running the same bytes, virtually.'],
+      [t.HARDWARE_SPECIFIC]: ['The encoded program is running in the browser CPU emulator.', 'This envelope stayed local for virtual execution.', 'The virtual target is executing the program bytes.'],
+      [t.MEMORABLE]: ['The program is running without leaving this browser.', 'A virtual machine is carrying the expression to its answer.', 'The hardware story has a local understudy.'],
+    },
+    [e.RESULT_RETURNED]: {
+      [t.DIRECT]: ['The result is back.', 'Execution returned a result.', 'The computation completed.'],
+      [t.LIGHTLY_PLAYFUL]: ['Answer delivered.', 'That one came back cleanly.', 'The result made it home.'],
+      [t.HARDWARE_SPECIFIC]: ['The return value has reached Envelop.', 'The completed job delivered its result.', 'The reply envelope contains the return value.'],
+      [t.MEMORABLE]: ['The machine answered in numbers.', 'The route ends with a returned value.', 'Program in, answer out.'],
+    },
     [e.UNKNOWN_TOKEN]: {
       [t.DIRECT]: ['I do not know that word yet.', 'That word is outside what I understand.', 'I cannot use that word in this calculation.'],
       [t.LIGHTLY_PLAYFUL]: ['That word is not in my vocabulary yet.', 'I followed the calculation until that word.', 'That word and I have not been introduced.'],
@@ -60,10 +102,10 @@ const rawCatalogs = {
       [t.MEMORABLE]: ['A clear request still needs a real instruction behind it.', 'That operation has no path through the current machine.', 'I will not invent an instruction Tomato does not have.'],
     },
     [e.INVALID_REGISTER]: {
-      [t.DIRECT]: ['That register is not available.', 'Use one of Tomato’s valid registers.', 'I cannot compile that register reference.'],
-      [t.LIGHTLY_PLAYFUL]: ['That register wandered past the end of the register file.', 'Tomato has fewer register seats than that.', 'That register name is one slot too adventurous.'],
+      [t.DIRECT]: ['That register is not available in this compute ABI.', 'Use one of the ABI’s exposed registers.', 'I cannot compile that register reference.'],
+      [t.LIGHTLY_PLAYFUL]: ['That register wandered past the end of the ABI map.', 'The playground has fewer register seats than that.', 'That register name is one slot too adventurous for this interface.'],
       [t.HARDWARE_SPECIFIC]: ['The compute ABI exposes registers R0 through R7.', 'Register encoding is limited to the eight ABI registers.', 'The register operand cannot be encoded in this program.'],
-      [t.MEMORABLE]: ['A register that cannot be addressed cannot hold the answer.', 'That register exists beyond this program’s map.', 'The register file has a firm edge.'],
+      [t.MEMORABLE]: ['A register that cannot be addressed here cannot hold the answer.', 'That register exists beyond this program’s map.', 'The compute interface has a firm edge.'],
     },
     [e.OUT_OF_RANGE]: {
       [t.DIRECT]: ['That value is outside the allowed range.', 'The requested value cannot be encoded here.', 'Use a value within the supported range.'],
@@ -105,16 +147,16 @@ const rawCatalogs = {
         'You may want the OG chat for that one.',
       ],
       [t.HARDWARE_SPECIFIC]: [
-        'There is no opcode for that.',
-        'That request has no path through my datapath.',
-        'The instruction ROM has nothing to say about that.',
-        'That one never reached my ALU.',
+        'That request is outside the verified local documentation.',
+        'No supported local answer matches that request.',
+        'Envelop cannot route that request to a documented answer.',
+        'The available local facts do not settle that question.',
       ],
       [t.MEMORABLE]: [
-        'I have an ALU, not a worldview.',
-        'The instruction ROM is silent on this matter.',
+        'A confident answer would need evidence I do not have.',
+        'The local record is silent on this matter.',
         'I know exactly enough to know that I do not know what you meant.',
-        'No amount of truth-table flexibility is saving that request.',
+        'I would rather leave a blank than invent a fact.',
       ],
     },
     [e.BUSY]: {
