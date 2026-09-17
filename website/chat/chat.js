@@ -8,7 +8,7 @@ const SUPABASE_KEY = 'sb_publishable_nhog8psQAljHGK3RvIyp-Q_26yCYmsF';
 const DEVICE_ID = '00000000-0000-0000-0000-000000000001';
 const STORE_KEY = 'envelop.web.session.v1';
 const READ_KEY = 'envelop.web.read.v1';
-const ASSET_VERSION = '20260917-progressive-replies-3';
+const ASSET_VERSION = '20260917-fast-virtual-7';
 const POLL_ACTIVE_MS = 3000;
 const POLL_BACKOFF_MS = [10000, 20000, 30000];
 const BEAT_MS = 15000;
@@ -76,6 +76,24 @@ const MOBILE_CHAT = '(max-width: 760px)';
 
 function mobileChat() {
   return window.matchMedia(MOBILE_CHAT).matches;
+}
+
+function randomId(source = globalThis.crypto) {
+  if (source && typeof source.randomUUID === 'function') {
+    return source.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  if (source && typeof source.getRandomValues === 'function') {
+    source.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const value = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
 }
 
 function jobViews() {
@@ -656,7 +674,7 @@ async function send() {
       const outcome = views.compileOutcome(err, body);
       if (!outcome) { showError(err.message); return; }
       const failedJob = {
-        id: crypto.randomUUID(),
+        id: randomId(),
         conversation: state.conversation,
         body,
         name: state.profile.display_name,
@@ -681,7 +699,7 @@ async function send() {
         return;
       }
       markSuggestionOperationStarted();
-      const job = {id: crypto.randomUUID(), conversation: state.conversation, body,
+      const job = {id: randomId(), conversation: state.conversation, body,
         name: state.profile.display_name, created_at: new Date().toISOString(),
         program: compiled.canonical,
         hex: compiler.hex(compiled.bytes),
@@ -703,12 +721,18 @@ async function send() {
     // Firmware auto-replies to canonical "Hello": normalize greeting variants
     // (e.g. "Hello, Tomato.") client-side, same as the Virtual Tomato worker.
     const greet = compiler.normalizeGreeting ? compiler.normalizeGreeting(body) : null;
+    if (greet && !state.tomatoOnline) {
+      addVirtualGreeting(body);
+      input.value = '';
+      showError('');
+      return;
+    }
     if (greet) {
       markAwaitTomato(4);
       setBusy(true);
       try {
         await request('rest/v1/rpc/send_message' , {
-          body: { p_conversation: state.conversation, p_body: greet, p_nonce: crypto.randomUUID() },
+          body: { p_conversation: state.conversation, p_body: greet, p_nonce: randomId() },
         });
         input.value = '';
         showError('');
@@ -729,7 +753,7 @@ async function send() {
   setBusy(true);
   try {
     await request('rest/v1/rpc/send_message' , {
-      body: { p_conversation: state.conversation, p_body: body, p_nonce: crypto.randomUUID() },
+      body: { p_conversation: state.conversation, p_body: body, p_nonce: randomId() },
     });
     input.value = '';
     showError('');
@@ -1034,13 +1058,35 @@ async function submitCuratedText(value) {
 
 function addKnowledgeJob(body, answer) {
   localJobs.push({
-    id: crypto.randomUUID(),
+    id: randomId(),
     conversation: state.conversation,
     body,
     created_at: new Date().toISOString(),
     knowledge: true,
     answer,
   });
+  requestLatestScroll();
+  renderThread();
+}
+
+function addVirtualGreeting(body, preview = false) {
+  const fullName = String(state.profile && state.profile.display_name || 'Friend').trim();
+  const firstName = fullName.split(/\s+/)[0] || 'Friend';
+  const job = {
+    id: randomId(),
+    conversation: state.conversation,
+    body,
+    name: fullName,
+    created_at: new Date().toISOString(),
+    phase: 'succeeded',
+    compute: false,
+    preview,
+    via: 'virtual',
+    target: 'Virtual Tomato · deterministic greeting rule',
+    replies: [`Hello, ${firstName}! I'm Virtual Tomato.`],
+  };
+  updateJobView(job);
+  localJobs.push(job);
   requestLatestScroll();
   renderThread();
 }
@@ -1129,7 +1175,7 @@ function renderKnowledgeJob(job) {
 async function addHelpJob(body = '/help') {
   const guide = await helpGuide();
   localJobs.push({
-    id: crypto.randomUUID(),
+    id: randomId(),
     conversation: state.conversation,
     body,
     name: state.profile && state.profile.display_name,
@@ -1368,15 +1414,15 @@ async function previewDraft() {
     if (input) input.focus();
     return;
   }
-  let compiled, hex;
+  let compiled, hex, greeting;
   try {
     const [m] = await Promise.all([import('./virtual/compiler.mjs?v=' + ASSET_VERSION), jobViews()]);
-    compiled = m.compile(body); hex = m.hex;
+    compiled = m.compile(body); hex = m.hex; greeting = m.normalizeGreeting ? m.normalizeGreeting(body) : null;
   } catch (err) {
     const outcome = jobViewsModule && jobViewsModule.compileOutcome(err, body);
     if (!outcome) { showError(err.message); return; }
     const failedJob = {
-      id: crypto.randomUUID(),
+      id: randomId(),
       conversation: state.conversation,
       body,
       name: state.profile.display_name,
@@ -1396,7 +1442,7 @@ async function previewDraft() {
   }
   if (compiled) {
     const job = {
-      id: crypto.randomUUID(),
+      id: randomId(),
       conversation: state.conversation,
       body,
       name: state.profile.display_name,
@@ -1419,7 +1465,13 @@ async function previewDraft() {
     runVirtual(job);
     return;
   }
-  const job = {id: crypto.randomUUID(), conversation: state.conversation, body,
+  if (greeting) {
+    addVirtualGreeting(body, true);
+    input.value = '';
+    showError('');
+    return;
+  }
+  const job = {id: randomId(), conversation: state.conversation, body,
     name: state.profile.display_name, created_at: new Date().toISOString(),
     program: 'Chat text · no assembly program is sent.',
     hex: hex(new TextEncoder().encode(body)),
@@ -1513,7 +1565,7 @@ function bindTryChip(chip) {
 function renderSuggestions(module) {
   let session = 'session';
   try {
-    session = sessionStorage.getItem('envelop.playground.session') || crypto.randomUUID();
+    session = sessionStorage.getItem('envelop.playground.session') || randomId();
     sessionStorage.setItem('envelop.playground.session', session);
   } catch (e) { /* deterministic day rotation still applies */ }
   const now = new Date();
@@ -1618,7 +1670,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
-if (typeof module !== 'undefined') module.exports = { avatarFor, computeResolution, resultTrace, timelineItems };
+if (typeof module !== 'undefined') module.exports = { avatarFor, computeResolution, randomId, resultTrace, timelineItems };
 
 
 // All rendering uses textContent. Program/hex never become executable markup.

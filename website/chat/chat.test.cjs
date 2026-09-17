@@ -4,7 +4,18 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync, statSync } = require('node:fs');
 const { join } = require('node:path');
-const { computeResolution, resultTrace, timelineItems } = require('./chat.js');
+const { computeResolution, randomId, resultTrace, timelineItems } = require('./chat.js');
+
+test('UUID generation works when randomUUID is unavailable', () => {
+  const source = {
+    getRandomValues(bytes) {
+      bytes.fill(0xab);
+      return bytes;
+    },
+  };
+  assert.equal(randomId(source), 'abababab-abab-4bab-abab-abababababab');
+  assert.match(randomId(null), /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+});
 
 test('durable compute permits virtual only after a terminal non-result', () => {
   assert.equal(computeResolution('completed'), 'physical');
@@ -53,6 +64,18 @@ test('Tomato replies refresh progressively while the typing state is active', ()
   assert.match(source, /viewingPeer\(state\.peer\.id\) && !state\.awaitTomatoAt/);
   assert.match(source, /await fetchMessages\(\);\s*scheduleReplyPoll\(\)/);
   assert.match(source, /if \(greet\) \{\s*markAwaitTomato\(4\)/);
+});
+
+test('offline greetings use an immediate named Virtual Tomato rule', () => {
+  const source = readFileSync(join(__dirname, 'chat.js'), 'utf8');
+  const sendFlow = source.slice(source.indexOf('async function send()'), source.indexOf('async function leave()'));
+  const greeting = source.slice(source.indexOf('function addVirtualGreeting'), source.indexOf('function renderPromptButton'));
+  assert.match(sendFlow, /if \(greet && !state\.tomatoOnline\) \{\s*addVirtualGreeting\(body\)/);
+  assert.ok(sendFlow.indexOf('if (greet && !state.tomatoOnline)') < sendFlow.indexOf('if (greet) {'));
+  assert.match(greeting, /fullName\.split\(\/\\s\+\/\)\[0\]/);
+  assert.match(greeting, /Virtual Tomato · deterministic greeting rule/);
+  assert.match(greeting, /Hello, \$\{firstName\}! I'm Virtual Tomato\./);
+  assert.match(sendFlow, /if \(greeting\) \{\s*addVirtualGreeting\(body, true\)/);
 });
 
 test('virtual fallback keeps its copy and action visibly separated', () => {
@@ -107,6 +130,23 @@ test('compiled previews stay on the explicitly virtual path', () => {
   assert.ok(preview.indexOf('intents.localAnswerFor(body)') < preview.indexOf('m.compile(body)'));
 });
 
+test('virtual compute stops when Tomato returns instead of replaying demo waits', () => {
+  const worker = readFileSync(join(__dirname, 'virtual', 'worker.mjs'), 'utf8');
+  const compute = worker.slice(worker.indexOf('if(job){'), worker.indexOf('}else{'));
+  assert.match(worker, /tileText\(2,11,3\)!=='Ama'/);
+  assert.match(worker, /makeFrame\(3,0,\[\]\)/);
+  assert.match(worker, /replies\.length=0/);
+  assert.match(worker, /f\.type===8&&!job/);
+  assert.match(compute, /i<64&&!computeFinished&&!executionFailure/);
+  assert.doesNotMatch(compute, /i<200|i<240/);
+});
+
+test('virtual conversation stops after the complete reply stream goes quiet', () => {
+  const worker = readFileSync(join(__dirname, 'virtual', 'worker.mjs'), 'utf8');
+  assert.match(worker, /replies\.length===0\|\|quietTicks<12/);
+  assert.match(worker, /replies\.length!==lastReplyCount/);
+});
+
 test('local knowledge routes before hardware ASCII validation', () => {
   const source = readFileSync(join(__dirname, 'chat.js'), 'utf8');
   const send = source.slice(
@@ -148,6 +188,19 @@ test('open-compute explainer states the deterministic footprint honestly', () =>
   const behaviorBytes = ['knowledge.mjs', 'intents.mjs', 'help.mjs']
     .reduce((total, file) => total + statSync(join(__dirname, file)).size, 0);
   assert.ok(behaviorBytes < 96 * 1024, `behavior source is ${behaviorBytes} bytes`);
+});
+
+test('open-compute comparison avoids fragile connector geometry', () => {
+  const html = readFileSync(join(__dirname, 'index.html'), 'utf8');
+  const css = readFileSync(join(__dirname, 'chat.css'), 'utf8');
+  const comparison = css.slice(css.indexOf('.comparison-diagram'));
+  assert.match(html, /class="comparison-route-marker"[^>]*>Two architectures · two response shapes<\/div>/);
+  assert.doesNotMatch(html, /<span class="dot"><\/span> PEOPLE AND ONE DORM COMPUTER/);
+  assert.doesNotMatch(comparison, /\.comparison-input::after/);
+  assert.doesNotMatch(comparison, /\.response-compare::before/);
+  assert.doesNotMatch(comparison, /\.response-compare article::before/);
+  assert.doesNotMatch(comparison, /\.deterministic-track::before/);
+  assert.match(comparison, /\.deterministic-track \{[^}]*grid-template-columns:repeat\(2/);
 });
 
 test('mobile pages prioritize the recording and omit screenshot galleries', () => {

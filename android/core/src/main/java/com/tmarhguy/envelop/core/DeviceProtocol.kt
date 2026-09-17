@@ -84,28 +84,79 @@ class DeviceFrameParser {
 
 class DeviceRoutes(private val maximumActive: Int = 8) {
     private val byRoute = linkedMapOf<Int, UUID>()
+    private val byConversation = mutableMapOf<UUID, Int>()
+    private val pins = mutableMapOf<Int, Int>()
     private var next = 1
-    val conversations: Map<Int, UUID> get() = byRoute.toMap()
-    fun routeFor(conversation: UUID): Int? {
-        byRoute.entries.firstOrNull { it.value == conversation }?.let { return it.key }
-        if (byRoute.size >= maximumActive || next > 0xffff) return null
-        return next++.also { byRoute[it] = conversation }
+    private var resetRequested = false
+
+    init {
+        require(maximumActive in 1..0xffff) { "Invalid active route limit" }
     }
+
+    val conversations: Map<Int, UUID>
+        @Synchronized get() = byRoute.toMap()
+    val activeCount: Int
+        @Synchronized get() = byRoute.size
+    val pinnedCount: Int
+        @Synchronized get() = pins.values.sum()
+    val resetReady: Boolean
+        @Synchronized get() = resetRequested && pins.isEmpty()
+
+    @Synchronized
+    fun routeFor(conversation: UUID): Int? {
+        byConversation[conversation]?.let { return it }
+        if (byRoute.size >= maximumActive || next > 0xffff) {
+            resetRequested = true
+            return null
+        }
+        return next++.also {
+            byRoute[it] = conversation
+            byConversation[conversation] = it
+        }
+    }
+
+    @Synchronized
+    fun pin(route: Int) {
+        require(byRoute.containsKey(route)) { "Unknown route" }
+        pins[route] = (pins[route] ?: 0) + 1
+    }
+
+    @Synchronized
+    fun release(route: Int) {
+        val count = pins[route] ?: throw IllegalStateException("Route is not pinned")
+        if (count == 1) pins.remove(route) else pins[route] = count - 1
+    }
+
+    @Synchronized
+    fun reset(): Boolean {
+        if (pins.isNotEmpty()) return false
+        byRoute.clear()
+        byConversation.clear()
+        resetRequested = false
+        next = 1
+        return true
+    }
+
+    @Synchronized
     fun conversation(route: Int) = byRoute[route]
-    fun reset() { byRoute.clear(); next = 1 }
 }
 
 class DeliveryTracker(private val maximum: Int = 64, private val retryAfterMs: Long = 10_000) {
     data class Entry(val token: Long, var lastSentAt: Long = Long.MIN_VALUE)
     private val entries = linkedMapOf<UUID, Entry>()
     private var next = 1L
+    @Synchronized
     fun tokenFor(message: UUID): Long? = entries[message]?.token ?: if (entries.size >= maximum || next > 0xffffffffL) null
         else next++.also { entries[message] = Entry(it) }
+    @Synchronized
     fun shouldSend(message: UUID, now: Long): Boolean {
         val entry = entries[message] ?: return true
         return entry.lastSentAt == Long.MIN_VALUE || now - entry.lastSentAt >= retryAfterMs
     }
+    @Synchronized
     fun markSent(message: UUID, now: Long) { entries[message]?.lastSentAt = now }
+    @Synchronized
     fun acknowledge(token: Long, remove: Boolean = true): UUID? = entries.entries.firstOrNull { it.value.token == token }?.key?.also { if (remove) entries.remove(it) }
+    @Synchronized
     fun clear() { entries.clear(); next = 1 }
 }

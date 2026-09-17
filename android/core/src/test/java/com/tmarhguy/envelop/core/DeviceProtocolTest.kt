@@ -39,15 +39,64 @@ assertEquals(8,v.size)
    assertNull(DeviceFrame(DeviceFrameType.HELLO_ACK, payload = "Tomato".toByteArray()).verifiedDeviceId)
 }
 
-@Test fun routesAreBoundedAndSessionLocal() {
+@Test fun routesStayStableAndRequestBoundedRotation() {
    val routes = DeviceRoutes()
    val ids = List(9) { UUID.randomUUID() }
    assertEquals(1, routes.routeFor(ids[0]))
     assertEquals(1, routes.routeFor(ids[0]))
     (1..7).forEach { assertEquals(it + 1, routes.routeFor(ids[it])) }
     assertNull(routes.routeFor(ids[8]))
-    routes.reset()
+    assertEquals(8, routes.activeCount)
+    assertTrue(routes.resetReady)
+    assertEquals(1, routes.routeFor(ids[0]))
+    assertTrue(routes.reset())
     assertEquals(1, routes.routeFor(ids[8]))
+}
+
+@Test fun pinnedRoutesCannotResetOrChangeConversation() {
+    val routes = DeviceRoutes(2)
+    val first = UUID.randomUUID(); val second = UUID.randomUUID(); val waiting = UUID.randomUUID()
+    assertEquals(1, routes.routeFor(first))
+    assertEquals(2, routes.routeFor(second))
+    routes.pin(1)
+    routes.pin(1)
+    assertNull(routes.routeFor(waiting))
+    assertFalse(routes.resetReady)
+    assertFalse(routes.reset())
+    assertEquals(first, routes.conversation(1))
+    assertEquals(1, routes.routeFor(first))
+    routes.release(1)
+    assertFalse(routes.resetReady)
+    routes.release(1)
+    assertTrue(routes.resetReady)
+    assertTrue(routes.reset())
+    assertNull(routes.conversation(1))
+    assertEquals(1, routes.routeFor(waiting))
+}
+
+@Test fun twoHundredConversationsReuseOnlyEightRouteSlots() {
+    val routes = DeviceRoutes()
+    val ids = List(200) { UUID.randomUUID() }
+    ids.chunked(8).forEachIndexed { cohort, conversations ->
+        conversations.forEachIndexed { index, conversation ->
+            assertEquals(index + 1, routes.routeFor(conversation))
+            assertEquals(index + 1, routes.routeFor(conversation))
+        }
+        assertTrue(routes.activeCount <= 8)
+        if (cohort < 24) {
+            assertNull(routes.routeFor(ids[(cohort + 1) * 8]))
+            assertTrue(routes.resetReady)
+            assertTrue(routes.reset())
+            assertEquals(0, routes.activeCount)
+        }
+    }
+    assertEquals(8, routes.activeCount)
+    assertEquals(ids.takeLast(8).toSet(), routes.conversations.values.toSet())
+}
+
+@Test fun routeLimitsAreValidated() {
+    assertThrows(IllegalArgumentException::class.java) { DeviceRoutes(0) }
+    assertThrows(IllegalArgumentException::class.java) { DeviceRoutes(0x10000) }
 }
 
 @Test fun deliveryTokensAreStableBoundedAndRetried() {
