@@ -603,6 +603,8 @@ async function send() {
       return;
     }
   }
+  const awaitingTomato = !!(state.peer && state.peer.is_device);
+  if (awaitingTomato) markAwaitTomato();
   setBusy(true);
   try {
     await request('rest/v1/rpc/send_message' , {
@@ -612,6 +614,7 @@ async function send() {
     showError('');
     await fetchMessages();
   } catch (err) {
+    if (awaitingTomato) clearAwaitTomato();
     showError(err.message);
   } finally {
     setBusy(false);
