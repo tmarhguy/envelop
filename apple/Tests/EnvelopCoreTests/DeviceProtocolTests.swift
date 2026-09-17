@@ -38,6 +38,14 @@ final class DeviceProtocolTests: XCTestCase {
         XCTAssertFalse(DeviceBridgeState.internetLost.isInternetReachable)
         XCTAssertTrue(DeviceBridgeState.online.isInternetReachable)
     }
+    func testDurableComputeReplayFence() {
+        XCTAssertEqual(DurableComputeResolution(status: "completed"), .physical)
+        XCTAssertEqual(DurableComputeResolution(status: "cancelled"), .virtualSafe)
+        XCTAssertEqual(DurableComputeResolution(status: "failed"), .virtualSafe)
+        for status in ["queued", "claimed", "running", "unexpected"] {
+            XCTAssertEqual(DurableComputeResolution(status: status), .unknown)
+        }
+    }
     func testPublishedVectors() throws {
         struct Vector: Decodable { let type: UInt8; let route: UInt16; let payload_hex: String; let frame_hex: String }
         let source = URL(fileURLWithPath: #filePath)

@@ -1,62 +1,39 @@
-# Envelop Apple (iOS first, macOS shares the core)
+# Envelop for macOS
 
-> Operator build: the Mac app is the personal bridge console that holds the Tomato lease. Everyone else uses web chat; native clients are undistributed.
+The 0.2.0 Mac app is a macOS 14 operator bridge and test chat client. It is not
+the general public client; ordinary users use the browser.
 
-Lightest native build. Zero dependencies: SwiftUI + CoreBluetooth +
-Network only. One screen: the Envelop network (people + Tomato) with the
-bridge role inside. No avatar picker (one assigned avatar), no legacy tabs.
+## Run checks
 
-```text
-apple/
-├── Package.swift            # EnvelopCore + EnvelopBLE + EnvelopApp, iOS 17 / macOS 14
-├── Sources/
-│   ├── EnvelopCore/          # BLE UART framing + device binary protocol
-│   ├── EnvelopBLE/           # CBCentralManager: scan, UART verify, chunked transport
-│   └── EnvelopApp/           # CloudView (onboarding/people/DMs) + bridge, Theme
-├── Tests/
-│   └── EnvelopCoreTests/     # framing + device protocol tests
-├── ios/Info.plist           # BT usage strings + bluetooth-central background mode
-├── mac/Info.plist           # Mac bundle plist (keep NSBluetoothAlwaysUsageDescription!)
-└── Envelop.app/              # built bundle — always run THIS, never .build binary
+```sh
+swift test
 ```
 
-Wire: service `6E400001…`, RX `…0002` write-without-response, TX `…0003`
-notify. Name `Envelop`, accept `Tomato` for compat. One LF = one bubble.
-Queued locally, never "Delivered".
+## Build the app bundle
 
-## Run now (no Xcode needed for logic)
-
-```bash
-swift test   # from apple/
+```sh
+./package-app.sh
 ```
 
-## Run the app
+The script builds the SwiftPM executable and writes an unsigned local app bundle
+and ZIP under the gitignored `private-builds/` directory. Set
+`ENVELOP_APPLE_OUT` to use another private local output directory. These
+artifacts are not hosted or distributed from the repository. Launch the bundle
+rather than the raw `.build` executable so Bluetooth permission and keyboard
+focus work correctly.
 
-- macOS (works today, no Xcode): `swift build`, then the script below
-  copies the binary + `mac/Info.plist` into the `Envelop.app` bundle and
-  opens it. Always launch the **bundle**, never the raw `.build` binary:
-  bundle-less executables can't become frontmost, so the window shows but
-  never takes keyboard focus. The bundle plist must keep
-  `NSBluetoothAlwaysUsageDescription` or TCC kills the app at first
-  `CBCentralManager` use (see DiagnosticReports `__TCC_CRASHING…`).
+The bridge uses Nordic UART service
+`6E400001-B5A3-F393-E0A9-E50E24DCCA9E`, requires Tomato's exact binary
+`ENVELOP/1` identity, then claims the backend bridge lease. This is protocol
+identity verification, not general cryptographic attestation.
 
-```bash
-swift build
-mkdir -p Envelop.app/Contents/MacOS
-cp .build/debug/Envelop Envelop.app/Contents/MacOS/Envelop
-cp mac/Info.plist Envelop.app/Contents/Info.plist
-open Envelop.app   # allow Bluetooth when macOS asks
-```
-- iPhone (internet-only, never holds the bridge): full Xcode required (`xcodebuild` today is CLT-only on this Mac,
-  so device builds wait on Xcode). Open `apple/` in Xcode, pick an iPhone
-  simulator/device, Run. Add `ios/Info.plist` keys + AppIcon to the Xcode
-  target when creating it (File > New > Project > iOS App, then drag in
-  `Sources/`). No Bluetooth usage keys or background modes are needed on iOS.
-```
+The Mac and private Android apps implement the same nearby bridge role. Tomato
+still has one radio connection, and the backend independently permits one
+unexpired authenticated lease. On disconnect or lease loss, session routes,
+tokens, pending writes, partial frames, and compute waiters must be discarded.
+See [bridge operations](../docs/bridge-operations.md).
 
-Icon: red circle + white paper plane (`EnvelopAvatar`). Export a real
-`AppIcon` from `assets/icon/envelop.svg` when it lands.
+Packaging and Swift tests verify source behavior only. They do not prove which
+backend revision is deployed or that matching Tomato hardware is online.
 
-## Composer
-
-Desktop: **Enter** sends; **Shift+Enter** inserts a newline. iPhone/iPad keep a visible **Send** button; the soft keyboard uses the Send action.
+This package targets macOS only.

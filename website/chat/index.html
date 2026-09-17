@@ -3,26 +3,56 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Envelop web chat: talk to whoever is online, and send a hello that a dorm-built computer answers.">
+<meta name="description" content="Envelop web chat for people and Tomato, with queued hardware delivery and an explicitly labeled Virtual Tomato preview.">
 <meta name="theme-color" content="#f7f5ef">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://tmarhguy.github.io/envelop/chat/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Envelop">
+<meta property="og:title" content="Chat — Envelop">
+<meta property="og:description" content="Browser chat for people and Tomato, with queued hardware delivery and an explicitly labeled virtual preview.">
+<meta property="og:url" content="https://tmarhguy.github.io/envelop/chat/">
+<meta property="og:image" content="https://tmarhguy.github.io/envelop/media/envelop-social-card.webp">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Envelop browser conversations with a provenance-labeled Tomato reply">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://tmarhguy.github.io/envelop/media/envelop-social-card.webp">
 <title>Chat — Envelop</title>
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../style.css">
-<link rel="stylesheet" href="chat.css">
-<script src="chat.js" defer></script>
+<link rel="stylesheet" href="../style.css?v=20260916">
+<link rel="stylesheet" href="chat.css?v=20260916-bounded-division">
+<script src="chat.js?v=20260916-bounded-division" defer></script>
 </head>
-<body>
+<body class="chat-page">
 <a class="skip" href="#chat">Skip to chat</a>
 <header class="wrap">
   <a class="brand" href="../" aria-label="Envelop home">
     <img src="../favicon.svg" width="34" height="34" alt="">
     <span class="brand-name">Envelop</span>
   </a>
-  <nav aria-label="Main navigation">
-    <a href="../#origin">Origin</a>
-    <a href="../#how">How it works</a>
+  <nav class="desk-nav" aria-label="Main navigation">
     <a href="./" aria-current="page">Chat</a>
+    <a href="../#path">How it works</a>
+    <a href="../#virtual">Virtual Tomato</a>
+    <a href="../status.html">Status</a>
+    <a href="../privacy.html">Privacy</a>
   </nav>
+  <details class="site-menu">
+    <summary aria-label="Open menu"><span></span><span></span><span></span></summary>
+    <nav aria-label="All pages">
+      <a href="./" aria-current="page">Chat</a>
+      <a href="../">Home</a>
+      <a href="../#path">How it works</a>
+      <a href="../#physical">Physical Tomato</a>
+      <a href="../#virtual">Virtual Tomato</a>
+      <a href="../#compute">Compute</a>
+      <a href="../status.html">Status</a>
+      <a href="../platforms.html">Platforms</a>
+      <a href="../privacy.html">Privacy</a>
+      <a href="https://tomato.tmarhguy.com/">Explore Tomato</a>
+    </nav>
+  </details>
 </header>
 
 <main class="wrap chat-main" id="chat">
@@ -30,13 +60,25 @@
     <div class="chat-welcome" id="chat-welcome" hidden>
       <p class="eyebrow"><span class="dot"></span> PEOPLE AND ONE DORM COMPUTER</p>
       <h1>Chat in your browser.</h1>
-      <p>Enter a name and you're visible while you're here. Text whoever is online, and send Tomato a hello whenever its bridge is up — a real computer answers from its screen. Leave, and your chats are gone for good.</p>
       <div class="chat-row">
-        <input id="chat-name" type="text" maxlength="32" placeholder="Your name" autocomplete="nickname" aria-label="Your name">
+        <input id="chat-name" type="text" maxlength="32" placeholder="Pick a name to enter…" autocomplete="nickname" aria-label="Your name">
         <button id="chat-join" type="button">Enter</button>
       </div>
+      <div class="try-row" aria-label="Try an example">
+        <span>Try:</span>
+        <button type="button" class="try-chip" data-example="Hello, Tomato.">Say hello to Tomato</button>
+        <button type="button" class="try-chip" data-example="What is (57 + 19) AND 0x3F?">What is (57 + 19) AND 0x3F?</button>
+      </div>
+      <p class="try-hint" id="try-hint" aria-live="polite" hidden></p>
+      <details class="welcome-more">
+        <summary>How it works</summary>
+        <div>
+          <p>Enter a name and you're visible while you're here. Text whoever is online, and send Tomato a hello whenever its verified bridge is up. If physical Tomato is offline, notes queue for its return while supported compute runs immediately in Virtual Tomato. You can also preview any draft explicitly in Virtual Tomato from the chat box; it stays labeled virtual and is never sent to hardware. “Leave Envelop” requests deletion of your profile and related chats.</p>
+          <p>Try compute: <code>What is (57 + 19) AND 0x3F?</code> → Tomato replies <code>12 / 0x0000000C</code>. <a href="../#compute">How compute works</a>. An online authenticated lease uses a durable physical-hardware job; otherwise the result is clearly labeled Virtual Tomato. Ambiguous hardware jobs are never replayed virtually.</p>
+        </div>
+      </details>
     </div>
-    <div class="chat-grid" id="chat-grid" hidden>
+    <div class="chat-grid" id="chat-grid" hidden data-pane="list">
       <aside class="chat-side" aria-label="Conversations">
         <div class="chat-me" id="chat-me"></div>
         <input class="chat-search" id="chat-search" type="search" placeholder="Find people" aria-label="Find people">
@@ -49,27 +91,45 @@
         <div class="chat-empty" id="chat-empty">
           <strong>Choose a conversation.</strong>
           Message a person — or send a note to Tomato.
+          <div class="try-row center" aria-label="Try an example with Tomato">
+            <button type="button" class="try-chip" data-example="Hello, Tomato.">Say hello to Tomato</button>
+            <button type="button" class="try-chip" data-example="What is (57 + 19) AND 0x3F?">Try compute → 12</button>
+          </div>
         </div>
         <div id="chat-convo" hidden>
-          <div class="chat-peer" id="chat-peer"></div>
-          <div class="chat-notice" id="chat-notice" hidden></div>
-          <div class="chat-messages" id="chat-messages" aria-live="polite"></div>
+          <div class="chat-peer-bar">
+            <button type="button" class="chat-back" id="chat-back" aria-label="Back to conversations">←</button>
+            <div class="chat-peer" id="chat-peer"></div>
+          </div>
+          <div class="chat-notice" id="chat-notice" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+          <div class="chat-log" id="chat-log">
+            <div class="chat-messages" id="chat-messages" aria-live="polite"></div>
+            <div class="chat-typing" id="chat-typing" hidden>
+              <div class="chat-msg them typing" role="status" aria-live="polite" aria-label="Tomato is typing">
+                <span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              </div>
+            </div>
+          </div>
+          <div class="vt-banner" id="vt-banner" hidden>
+            <span>Hardware offline — notes queue automatically; compute and explicit previews run in Virtual Tomato.</span>
+          </div>
           <div class="chat-composer">
             <input id="chat-draft" type="text" maxlength="256" placeholder="Message" aria-label="Message" autocomplete="off">
+            <button type="button" id="vt-preview" title="Runs your draft — or your last message — in Virtual Tomato (labeled virtual, never sent to hardware)">Preview</button>
             <button class="chat-send" id="chat-send" type="button">Send</button>
           </div>
         </div>
       </section>
     </div>
-    <div class="chat-error" id="chat-error" hidden></div>
+    <div class="chat-error" id="chat-error" role="alert" aria-atomic="true" hidden></div>
   </div>
   <noscript><p>Web chat needs JavaScript. The story behind it is on the <a href="../">main page</a>.</p></noscript>
 </main>
 
 <footer class="wrap">
   <a class="brand" href="../"><img src="../favicon.svg" width="26" height="26" alt=""><span class="brand-name">Envelop</span></a>
-  <p class="disclaimer">Not a commercial product — an exploration of a stack around Tomato, a computer built to learn and to love.</p>
-  <a href="https://github.com/tmarhguy/envelop">Source on GitHub</a>
+  <p class="disclaimer">An experimental messenger around <a href="https://tomato.tmarhguy.com/">Tomato</a>. <a href="../status.html">Status</a> · <a href="../platforms.html">Platforms</a> · <a href="../privacy.html">Privacy</a> · <a href="../#compute">Compute</a></p>
+  <a href="https://tomato.tmarhguy.com/">Explore Tomato</a>
 </footer>
 </body>
 </html>

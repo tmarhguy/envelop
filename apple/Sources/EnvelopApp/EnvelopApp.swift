@@ -3,10 +3,8 @@ import SwiftUI
 import AppKit
 #endif
 
-/// Envelop iOS/macOS entry. Zero dependencies: SwiftUI + CoreBluetooth +
-/// Network only. One screen: the Envelop network (people + Tomato).
-/// BLE exists only inside the bridge role (Connect Tomato, macOS only);
-/// iOS and other clients are internet-only and feed off a bridge.
+/// Envelop macOS entry. Zero dependencies: SwiftUI + CoreBluetooth +
+/// Network only. One screen combines test chat with the Tomato bridge role.
 @main
 public struct EnvelopApp: App {
     public init() {

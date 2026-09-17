@@ -7,19 +7,29 @@
 apple/.build/
 apple/.swiftpm/
 apple/Envelop.app/
+apple/private-builds/
 DerivedData/
 *.xcuserstate
 xcuserdata/
+*.app
+*.dmg
+*.ipa
+*.pkg
 
 # Android / Gradle
 .gradle/
 **/build/
+android/private-builds/
 local.properties
 *.apk
 *.aab
-!website/downloads/*.apk
-!website/downloads/*.zip
-!website/downloads/*.ipa
+
+# Private/generated artifacts
+backups/
+.public-site/
+website/downloads/
+*.msix
+*.zip
 
 # Node
 node_modules/
@@ -34,11 +44,4 @@ log/.obsidian/
 *.swp
 *~
 
-# Windows
-bin/
-obj/
-*.user
-*.suo
 .vscode/
-windows/.publish/
-apple/.build/

@@ -12,6 +12,9 @@ struct CloudView: View {
     @State private var draft = ""
     @State private var editingName = false
     @State private var profileName = ""
+    @State private var computing = false
+    @State private var computePrompts: [TomatoComputeRecord] = []
+    @StateObject private var localCompute = TomatoComputeRecord(prompt: "What is (57 + 19) AND 0x3F?")
     var body: some View {
         Group {
             if !session.configured {
@@ -26,6 +29,9 @@ struct CloudView: View {
                     }
                         .buttonStyle(.borderedProminent)
                         .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || name.count > 32 || session.busy)
+                    Button("Try Tomato locally") { computing = true }
+                    if computing { ScrollView { TomatoComputeView(session: session, record: localCompute) }.frame(height: 350) }
+                    Text("Local preview works without a cloud profile.").font(.caption).foregroundStyle(.secondary)
                 }.padding(30).frame(maxWidth: 420)
             } else {
                 NavigationSplitView {
@@ -100,6 +106,13 @@ struct CloudView: View {
                 } detail: {
                     if let peer = session.selected {
                         VStack(spacing: 0) {
+                            if peer.is_device {
+                                HStack {
+                                    Label("Hardware first · virtual available", systemImage: "cpu").font(.caption).foregroundStyle(.secondary)
+                                    Spacer()
+                                    Button("Try a calculation") { draft = "What is (57 + 19) AND 0x3F?" }
+                                }.padding(12)
+                            }
                             ScrollViewReader { proxy in
                                 ScrollView {
                                     LazyVStack(alignment: .leading, spacing: 12) {
@@ -123,7 +136,14 @@ struct CloudView: View {
                                                 if message.sender_id != session.profile?.id { Spacer(minLength: 40) }
                                             }.id(message.id)
                                         }
+                                        if peer.is_device {
+                                            ForEach(computePrompts) { record in
+                                                TomatoComputeView(session: session, record: record).id(record.id)
+                                            }
+                                        }
                                     }.padding()
+                                }.onChange(of: computePrompts.count) {
+                                    if let id = computePrompts.last?.id { proxy.scrollTo(id, anchor: .bottom) }
                                 }.onChange(of: session.messages.last?.id) {
                                     if let id = session.messages.last?.id { proxy.scrollTo(id, anchor: .bottom) }
                                 }
@@ -226,6 +246,11 @@ struct CloudView: View {
     private func sendDraft(to peer: CloudProfile) {
         guard canSend else { return }
         let text = draft
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let compute = trimmed.hasPrefix("/calc") || trimmed.hasPrefix("/run") || trimmed.hasPrefix("what is ") || trimmed.first.map { "0123456789(~+-".contains($0) } == true
+        if peer.is_device && compute {
+            computePrompts.append(TomatoComputeRecord(prompt: text)); draft = ""; return
+        }
         let peerID = peer.id
         Task {
             if await session.send(text), draft == text, session.selected?.id == peerID { draft = "" }

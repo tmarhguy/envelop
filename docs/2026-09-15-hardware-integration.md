@@ -1,5 +1,9 @@
 # Physical Tomato bridge recovery
 
+> **Dated historical evidence, not current status.** This record is
+> noncanonical outside its named setup. See [status.md](status.md) for current
+> facts and unknowns.
+
 The missing HELLO acknowledgement was not the failure: the native app reached
 the verified-device state, but `claim_bridge` rejected its account because its
 device-specific grant was missing. Provisioned only the existing Mac profile

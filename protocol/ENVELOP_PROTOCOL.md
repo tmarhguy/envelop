@@ -18,11 +18,33 @@ All integers are unsigned big endian. Frame: magic `50 47`, version `01`, type u
 | STATUS | 10 | 0 | state u8: 0 offline, 1 syncing, 2 online |
 | PING | 11 | 0 | opaque 0–8 bytes |
 | PONG | 12 | 0 | exact PING payload |
+| COMPUTE_JOB | 32 | nonzero | token u32, followed by 1–508 bytes of Tomato job data |
+| COMPUTE_RESULT | 33 | original route | token u32, status u8, result u32 |
 
 Device IDs appear only in the handshake. Cloud UUIDs never cross BLE. Routes and tokens are session-local. Route 0 is reserved. A bridge cannot reassign a route until CONTACT_RESET. Route table is bounded to eight contacts in the current bridge implementation. Tokens must not wrap. Retries reuse the same token and body. Device must deduplicate CHAT_MESSAGE tokens before appending to its ring, but ACK duplicates. The bridge ACKs SEND_MESSAGE only after the server accepts the message. An ACK confirms protocol acceptance, not a human read receipt.
 
 Reconnect clears ephemeral routes/tokens. Delivery is at least once: if the device accepts a frame and loses connection before cloud ACK persistence, it may display the message again after resynchronization. Firmware should clear its session projection on CONTACT_RESET. Do not claim exactly-once rendering across power loss.
 
-Shared vectors: `test-vectors/frames.json`; consumed by Swift XCTest and `python3 protocol/test-vectors/verify_c.py`. C callbacks borrow payload storage for the duration of the callback only; copy into a bounded application buffer before returning. Do not reenter `envelop_feed` from its callback.
+For compute, a bridge must first claim the durable backend job, then send
+`COMPUTE_JOB`. It may complete that job only from the matching
+`COMPUTE_RESULT`. A timeout, disconnect, or lost lease leaves an unknown
+hardware outcome; it is not permission to rerun the job in Virtual Tomato.
+Only a completed backend hardware job may be labeled Physical/Hardware Tomato.
 
-The codecs implement framing, not application semantics. Apple currently implements handshake, contacts from pending deliveries, queued text, acknowledgments, and device replies. OPEN_CHAT/history projection, contact paging, STATUS emission, and firmware UI remain integration work.
+Shared vectors: `test-vectors/frames.json`; consumed by Swift XCTest and
+`python3 protocol/test-vectors/verify_c.py`. The vectors cover core framing and
+both compute frame types; they do not constitute a live-radio or complete
+application-flow test. C callbacks borrow payload storage for the duration of
+the callback only; copy into a bounded application buffer before returning. Do
+not reenter `envelop_feed` from its callback.
+
+`OPEN_CHAT` and `CHAT_HISTORY` are defined for device-driven history requests,
+but the current native bridge application handlers do not implement that
+exchange. Do not claim synchronized on-device history until those handlers and
+their lease-scoped backend read contract exist.
+
+The codecs implement framing, not application semantics. Current macOS,
+Android, backend, and Tomato OS support must be checked against their source and
+[current status](../docs/status.md). In particular, codec agreement does not
+prove that matching bridge, backend, and firmware revisions are deployed or
+online.

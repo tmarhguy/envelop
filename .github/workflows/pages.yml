@@ -25,15 +25,67 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Run all website tests
+        run: node --test website/chat/*.test.cjs website/chat/*.test.mjs website/chat/virtual/*.test.mjs
+      - name: Check documentation and public boundary
+        run: python3 tools/check_docs.py
+      - name: Stage public site without private packages
+        run: |
+          mkdir .public-site
+          rsync -a \
+            --exclude 'downloads/' \
+            --exclude '*.apk' --exclude '*.aab' --exclude '*.zip' \
+            --exclude '*.dmg' --exclude '*.ipa' --exclude '*.exe' --exclude '*.msi' \
+            --exclude '.env*' --exclude '*.key' --exclude '*.pem' --exclude '*.pfx' \
+            website/ .public-site/
+          python3 tools/check_docs.py --public-root .public-site
+      - name: Enforce static performance and artifact budgets
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path(".public-site")
+          files = [path for path in root.rglob("*") if path.is_file()]
+          forbidden_dirs = {"downloads", "backups", "backend", "android", "apple", "windows", "protocol"}
+          forbidden_suffixes = {".apk", ".aab", ".zip", ".dmg", ".ipa", ".exe", ".msi", ".key", ".pem", ".pfx"}
+          for path in files:
+              rel = path.relative_to(root)
+              assert not (set(rel.parts) & forbidden_dirs), f"private directory in public artifact: {rel}"
+              assert path.suffix.lower() not in forbidden_suffixes, f"private package in public artifact: {rel}"
+              assert not path.name.startswith(".env"), f"environment file in public artifact: {rel}"
+
+          groups = {
+              "JavaScript": ((".js", ".mjs", ".cjs"), 256 * 1024),
+              "CSS": ((".css",), 128 * 1024),
+              "video": ((".mp4", ".webm"), 20 * 1024 * 1024),
+              "firmware": ((".bin",), 512 * 1024),
+          }
+          for label, (suffixes, ceiling) in groups.items():
+              assets = [path for path in files if path.suffix.lower() in suffixes]
+              total = sum(path.stat().st_size for path in assets)
+              assert total <= ceiling, f"{label} total {total} exceeds {ceiling} bytes"
+              print(f"{label}: {total}/{ceiling} bytes across {len(assets)} files")
+
+          home = (root / "index.html").read_text(encoding="utf-8")
+          videos = re.findall(r"<video\b.*?</video>", home, flags=re.I | re.S)
+          assert videos, "homepage evidence video is missing"
+          for video in videos:
+              opening = video.split(">", 1)[0]
+              assert not re.search(r"\bautoplay\b", opening, flags=re.I), "below-fold video must not autoplay"
+              assert re.search(r'\bpreload=["\']none["\']', opening, flags=re.I), "below-fold video must use preload=none"
+              assert not re.search(r"<source\b[^>]*\ssrc=", video, flags=re.I), "below-fold video source must be deferred"
+              assert re.search(r"<source\b[^>]*\sdata-src=", video, flags=re.I), "deferred video source is missing"
+          PY
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
         with:
           enablement: true
       - name: Upload site
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
-          path: website
+          path: .public-site
 
   deploy:
     needs: build
@@ -44,4 +96,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

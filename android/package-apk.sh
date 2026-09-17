@@ -1,17 +1,32 @@
 #!/bin/sh
-# Bake ENVELOP_SUPABASE_* via Gradle properties, assemble APK, copy to website/downloads.
+# Build Tyrone's private bridge + chat APK. The output stays gitignored.
 set -eu
 cd "$(dirname "$0")"
 ROOT="$(cd .. && pwd)"
 VERSION="${ENVELOP_VERSION:-0.2.0}"
-OUT_DIR="$ROOT/website/downloads"
-APK_NAME="envelop-android-${VERSION}.apk"
+OUT_DIR="${ENVELOP_ANDROID_OUT:-$ROOT/android/private-builds}"
+APK_NAME="envelop-private-${VERSION}.apk"
 
-# Prefer JDK 17 when Homebrew openjdk@17 is present (system Java 25 breaks current AGP).
-if [ -z "${JAVA_HOME:-}" ] && [ -d /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ]; then
-  export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
-  export PATH="$JAVA_HOME/bin:$PATH"
+# Gradle 8.11.1 and the current Android plugin must run on JDK 17.
+if [ -z "${JAVA_HOME:-}" ]; then
+  if [ -d /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ]; then
+    JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+  elif [ -x /usr/libexec/java_home ] && JDK17=$(/usr/libexec/java_home -v 17 2>/dev/null); then
+    JAVA_HOME=$JDK17
+  fi
+  export JAVA_HOME
 fi
+if [ -z "${JAVA_HOME:-}" ] || [ ! -x "$JAVA_HOME/bin/java" ]; then
+  echo "JDK 17 is required. Set JAVA_HOME to a JDK 17 installation." >&2
+  exit 1
+fi
+JAVA_VERSION=$("$JAVA_HOME/bin/java" -XshowSettings:properties -version 2>&1 |
+  awk -F= '/java.specification.version/ { gsub(/[[:space:]]/, "", $2); print $2; exit }')
+if [ "$JAVA_VERSION" != "17" ]; then
+  echo "JDK 17 is required; JAVA_HOME currently selects Java $JAVA_VERSION." >&2
+  exit 1
+fi
+export PATH="$JAVA_HOME/bin:$PATH"
 
 if [ -z "${ANDROID_HOME:-}" ] && [ -d "$HOME/Library/Android/sdk" ]; then
   export ANDROID_HOME="$HOME/Library/Android/sdk"
@@ -41,17 +56,16 @@ if [ -n "${ANDROID_HOME:-}" ] && [ ! -f local.properties ]; then
 fi
 
 # Prefer debug APK (signed with debug keystore) so sideload works without a release keystore.
-./gradlew :app:assembleDebug \
+./gradlew :bridge:assembleDebug \
   -Penvelop.url="$URL" \
   -Penvelop.key="$KEY" \
   --no-daemon
 
-APK="app/build/outputs/apk/debug/app-debug.apk"
+mkdir -p "$OUT_DIR"
+APK="bridge/build/outputs/apk/debug/bridge-debug.apk"
 if [ ! -f "$APK" ]; then
   echo "Expected APK missing: $APK" >&2
   exit 1
 fi
-
-mkdir -p "$OUT_DIR"
 cp "$APK" "$OUT_DIR/$APK_NAME"
-printf 'Wrote %s (%s bytes)\n' "$OUT_DIR/$APK_NAME" "$(wc -c < "$OUT_DIR/$APK_NAME" | tr -d ' ')"
+printf 'Wrote private APK %s (%s bytes)\n' "$OUT_DIR/$APK_NAME" "$(wc -c < "$OUT_DIR/$APK_NAME" | tr -d ' ')"

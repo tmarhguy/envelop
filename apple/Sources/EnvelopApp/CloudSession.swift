@@ -22,6 +22,16 @@ struct CloudMessage: Codable, Identifiable {
     let body: String
     let created_at: String
 }
+private struct CloudComputeJob: Decodable {
+    let id: UUID
+    let status: String
+    let result_text: String?
+}
+enum CloudHardwareResult {
+    case physical(String)
+    case unavailable(String)
+    case unknown(String)
+}
 private struct CloudCredentials: Codable {
     let access_token: String
     let refresh_token: String
@@ -37,6 +47,21 @@ private enum CloudError: LocalizedError {
 
 @MainActor
 final class CloudSession: ObservableObject {
+    private enum BridgeAPI {
+        static let claim = "rest/v1/rpc/claim_bridge"
+        static let release = "rest/v1/rpc/release_bridge"
+        static let pending = "rest/v1/rpc/bridge_pending"
+        static let acknowledge = "rest/v1/rpc/ack_device_message"
+        static let send = "rest/v1/rpc/send_as_device"
+        static let computePending = "rest/v1/rpc/bridge_compute_pending"
+        static let computeClaim = "rest/v1/rpc/bridge_claim_compute_job"
+        static let computeFinish = "rest/v1/rpc/bridge_finish_compute_job"
+    }
+    private enum ComputeAPI {
+        static let enqueue = "rest/v1/rpc/enqueue_compute_job"
+        static let read = "rest/v1/rpc/my_compute_job"
+        static let cancel = "rest/v1/rpc/cancel_compute_job"
+    }
     @Published var profile: CloudProfile?
     @Published var people: [CloudProfile] = []
     @Published var messages: [CloudMessage] = []
@@ -64,6 +89,89 @@ final class CloudSession: ObservableObject {
     @Published var connected = false
     @Published var bridgeState: DeviceBridgeState = .idle
     private var radio: EnvelopBLE?
+    private var computeWaiter: (token: UInt32, route: UInt16, instance: UUID, continuation: CheckedContinuation<Data?, Never>)?
+    private var bridgeComputeWaiters: [UInt32: (job: UUID, continuation: CheckedContinuation<Data?, Never>)] = [:]
+    @Published var computeWireHex = ""
+    private var computeToken: UInt32 = 0x80000000
+    var canUseDurableHardware: Bool {
+        profile != nil && selected?.is_device == true && conversation != nil
+            && (tomatoOnline || bridgeState.isInternetReachable)
+    }
+    func executeDurableHardware(_ jobHex: String) async -> CloudHardwareResult {
+        guard canUseDurableHardware, let conversation else {
+            return .unavailable("No authenticated Tomato lease is online.")
+        }
+        let submitted: CloudComputeJob
+        do {
+            submitted = try await request(
+                ComputeAPI.enqueue,
+                body: ["p_device": deviceID, "p_conversation": conversation.uuidString, "p_job_hex": jobHex]
+            )
+        } catch {
+            // The request may have reached the server even when its response did
+            // not reach us. Without a job id there is nothing safe to cancel.
+            return .unknown("Hardware submission could not be confirmed. It will not be run virtually.")
+        }
+        let deadline = Date().addingTimeInterval(25)
+        while !Task.isCancelled && Date() < deadline {
+            do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch { break }
+            do {
+                let current: CloudComputeJob = try await request(
+                    ComputeAPI.read, body: ["p_job": submitted.id.uuidString]
+                )
+                let resolution = DurableComputeResolution(status: current.status)
+                if resolution == .physical {
+                    return .physical(current.result_text ?? "Tomato completed the job.")
+                }
+                if resolution == .virtualSafe {
+                    return .unavailable(current.result_text ?? "The hardware job is terminal and cannot replay.")
+                }
+            } catch {
+                return await cancelDurableHardware(submitted.id)
+            }
+        }
+        return await cancelDurableHardware(submitted.id)
+    }
+    private func cancelDurableHardware(_ id: UUID) async -> CloudHardwareResult {
+        do {
+            let final: CloudComputeJob = try await request(
+                ComputeAPI.cancel, body: ["p_job": id.uuidString]
+            )
+            if DurableComputeResolution(status: final.status) == .physical {
+                return .physical(final.result_text ?? "Tomato completed the job.")
+            }
+            if DurableComputeResolution(status: final.status) == .virtualSafe {
+                return .unavailable("The hardware job is terminal and cannot replay.")
+            }
+            return .unknown("Hardware completion is unknown. It will not be run virtually.")
+        } catch {
+            return .unknown("Hardware cancellation could not be confirmed. It will not be run virtually.")
+        }
+    }
+    func executeHardware(_ job: Data) async -> Data? {
+        computeWireHex = ""
+        guard computeWaiter == nil, bridgeState.isInternetReachable,
+              let conversation, let route = routes.conversations.first(where: { $0.value == conversation })?.key,
+              let radio else { return nil }
+        computeToken &+= 1
+        let token = computeToken
+        var payload = Data([UInt8(token >> 24), UInt8((token >> 16) & 255), UInt8((token >> 8) & 255), UInt8(token & 255)])
+        payload.append(job)
+        return await withCheckedContinuation { continuation in
+            computeWaiter = (token, route, bridgeInstance, continuation)
+            guard let frame = try? DeviceFrame(type: .computeJob, route: route, payload: payload), radio.sendFrame(frame) else {
+                computeWaiter = nil; continuation.resume(returning: nil); return
+            }
+            if let sent = try? DeviceFrame(type: .computeJob, route: route, payload: payload) {
+                computeWireHex = sent.encoded.map { String(format: "%02X", $0) }.joined(separator: " ")
+            }
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 8_000_000_000)
+                guard let self, let pending = self.computeWaiter, pending.token == token else { return }
+                self.computeWaiter = nil; pending.continuation.resume(returning: nil)
+            }
+        }
+    }
     private let parser = DeviceFrameParser()
     private var bridgeTask: Task<Void, Never>?
     private var handshakeTask: Task<Void, Never>?
@@ -186,12 +294,24 @@ final class CloudSession: ObservableObject {
               selected?.is_device != true || body.utf8.allSatisfy({ (32...126).contains($0) }) else {
             error = "Use 1–256 bytes. Tomato accepts printable ASCII."; return false
         }
+        // Firmware only auto-replies to canonical "Hello" and "/help": normalize
+        // greeting variants (e.g. "Hello, Tomato.") client-side, same as web chat
+        // and the Virtual Tomato worker, so hardware and virtual agree.
+        var outBody = body
+        if selected?.is_device == true {
+            let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.range(of: #"^(hi|hey|hello)\s*,?\s*(tomato)?\s*[!.?]*$"#, options: [.regularExpression, .caseInsensitive]) != nil {
+                outBody = "Hello"
+            } else if trimmed.range(of: #"^(help|what can you do)[?.!]*$"#, options: [.regularExpression, .caseInsensitive]) != nil {
+                outBody = "/help"
+            }
+        }
         busy = true; defer { busy = false }
-        if pendingSend?.conversation != conversation || pendingSend?.body != body {
-            pendingSend = (conversation, body, UUID())
+        if pendingSend?.conversation != conversation || pendingSend?.body != outBody {
+            pendingSend = (conversation, outBody, UUID())
         }
         do {
-            let _: CloudMessage = try await request("rest/v1/rpc/send_message", body: ["p_conversation": conversation.uuidString, "p_body": body, "p_nonce": pendingSend!.nonce.uuidString])
+            let _: CloudMessage = try await request("rest/v1/rpc/send_message", body: ["p_conversation": conversation.uuidString, "p_body": outBody, "p_nonce": pendingSend!.nonce.uuidString])
             pendingSend = nil; error = ""
             // The send succeeded even if a subsequent history refresh fails.
             do { try await fetchMessages() } catch { self.error = error.localizedDescription }
@@ -204,7 +324,7 @@ final class CloudSession: ObservableObject {
             return
         }
         guard radio == nil else { return }
-        let ble = EnvelopBLE(binaryMode: true); radio = ble
+        let ble = EnvelopBLE(); radio = ble
         bridgeState = .scanning
         ble.onLink = { [weak self] link in
             guard let self else { return }
@@ -230,6 +350,7 @@ final class CloudSession: ObservableObject {
                 }
                 let instance = self.bridgeInstance
                 Task { [weak self] in await self?.release(instance) }
+                self.clearComputeWaiters()
                 self.routes.reset(); self.deliveryTokens.removeAll(); self.announcedRoutes.removeAll()
                 self.lastForward.removeAll(); self.outboundNonces.removeAll(); self.nextToken = 1
                 self.bridgeInstance = UUID()
@@ -247,14 +368,40 @@ final class CloudSession: ObservableObject {
         bridgeState = .idle
         let instance = bridgeInstance
         Task { [weak self] in await self?.release(instance) }
+        clearComputeWaiters()
         bridgeInstance = UUID(); routes.reset(); deliveryTokens.removeAll()
         announcedRoutes.removeAll(); outboundNonces.removeAll(); lastForward.removeAll(); nextToken = 1
     }
+    private func clearComputeWaiters() {
+        if let pending = computeWaiter {
+            computeWaiter = nil
+            pending.continuation.resume(returning: nil)
+        }
+        let pending = Array(bridgeComputeWaiters.values)
+        bridgeComputeWaiters.removeAll()
+        for waiter in pending {
+            waiter.continuation.resume(returning: nil)
+        }
+    }
     private func release(_ instance: UUID) async {
         // PostgREST returns JSON null for void RPCs.
-        let _: String? = try? await request("rest/v1/rpc/release_bridge", body: ["p_device": deviceID, "p_instance": instance.uuidString])
+        let _: String? = try? await request(
+            BridgeAPI.release,
+            body: ["p_device": deviceID, "p_instance": instance.uuidString]
+        )
     }
     private func receiveDevice(_ frame: DeviceFrame) {
+        if frame.type == .computeResult, frame.payload.count == 9 {
+            let token = frame.payload.prefix(4).reduce(UInt32(0), { ($0 << 8) | UInt32($1) })
+            if let pending = computeWaiter,
+               pending.route == frame.route, pending.instance == bridgeInstance,
+               frame.payload.prefix(4).reduce(UInt32(0), { ($0 << 8) | UInt32($1) }) == pending.token {
+                computeWaiter = nil; pending.continuation.resume(returning: frame.payload); return
+            }
+            if let pending = bridgeComputeWaiters.removeValue(forKey: token) {
+                pending.continuation.resume(returning: frame.payload); return
+            }
+        }
         if frame.type == .helloAck, bridgeState == .gattReady, frame.verifiedDeviceID != nil {
             handshakeTask?.cancel(); bridgeState = .tomatoVerified
             let generation = bridgeGeneration
@@ -277,7 +424,10 @@ final class CloudSession: ObservableObject {
             Task { [weak self] in
                 guard let self else { return }
                 do {
-                    let _: String? = try await self.request("rest/v1/rpc/ack_device_message", body: ["p_device": self.deviceID, "p_instance": instance.uuidString, "p_message": message.uuidString])
+                    let _: String? = try await self.request(
+                        BridgeAPI.acknowledge,
+                        body: ["p_device": self.deviceID, "p_instance": instance.uuidString, "p_message": message.uuidString]
+                    )
                     guard self.bridgeInstance == instance else { return }
                     self.deliveryTokens.removeValue(forKey: token); self.lastForward.removeValue(forKey: message)
                 } catch { self.error = error.localizedDescription }
@@ -290,7 +440,10 @@ final class CloudSession: ObservableObject {
             Task { [weak self] in
                 guard let self else { return }
                 do {
-                    let _: CloudMessage = try await self.request("rest/v1/rpc/send_as_device", body: ["p_device": self.deviceID, "p_instance": instance.uuidString, "p_conversation": conversation.uuidString, "p_body": body, "p_nonce": nonce.uuidString])
+                    let _: CloudMessage = try await self.request(
+                        BridgeAPI.send,
+                        body: ["p_device": self.deviceID, "p_instance": instance.uuidString, "p_conversation": conversation.uuidString, "p_body": body, "p_nonce": nonce.uuidString]
+                    )
                     guard self.bridgeInstance == instance else { return }
                     if let ack = try? DeviceFrame(type: .messageAck, route: frame.route, payload: Data(bytes.prefix(4))) { _ = self.radio?.sendFrame(ack) }
                 } catch { self.error = error.localizedDescription }
@@ -301,13 +454,20 @@ final class CloudSession: ObservableObject {
         struct Lease: Decodable { let device_id: UUID }
         struct Pending: Decodable { let message_id: UUID; let conversation_id: UUID; let sender_id: UUID; let body: String }
         do {
-            let _: Lease = try await request("rest/v1/rpc/claim_bridge", body: ["p_device": deviceID, "p_instance": bridgeInstance.uuidString])
+            let _: Lease = try await request(
+                BridgeAPI.claim,
+                body: ["p_device": deviceID, "p_instance": bridgeInstance.uuidString]
+            )
             guard generation == bridgeGeneration, !Task.isCancelled else { return }
+            bridgeState = .leaseAcquired
             if announcedRoutes.isEmpty {
                 bridgeState = .syncing
                 if let reset = try? DeviceFrame(type: .contactReset) { _ = radio?.sendFrame(reset) }
             }
-            let queued: [Pending] = try await request("rest/v1/rpc/bridge_pending", body: ["p_device": deviceID, "p_instance": bridgeInstance.uuidString])
+            let queued: [Pending] = try await request(
+                BridgeAPI.pending,
+                body: ["p_device": deviceID, "p_instance": bridgeInstance.uuidString]
+            )
             guard generation == bridgeGeneration, !Task.isCancelled else { return }
             for item in queued {
                 if (lastForward[item.message_id] ?? .distantPast) > Date().addingTimeInterval(-10) { continue }
@@ -332,6 +492,72 @@ final class CloudSession: ObservableObject {
                 payload.append(try DeviceFrame.text(item.body))
                 if let frame = try? DeviceFrame(type: .chatMessage, route: route, payload: payload), radio?.sendFrame(frame) == true { lastForward[item.message_id] = Date() }
             }
+            // Cloud compute jobs: same BLE link, COMPUTE_JOB frames, results submitted
+            // back so web waiters polling my_compute_job see Tomato's own answer.
+            struct ComputePending: Decodable { let job_id: UUID; let conversation_id: UUID; let requester: UUID; let job_hex: String }
+            let jobs: [ComputePending] = try await request(
+                BridgeAPI.computePending,
+                body: ["p_device": deviceID, "p_instance": bridgeInstance.uuidString]
+            )
+            guard generation == bridgeGeneration, !Task.isCancelled else { return }
+            for job in jobs.prefix(4) {
+                if routes.conversations.count >= 8 && !routes.conversations.values.contains(job.conversation_id) { continue }
+                guard let route = routes.route(for: job.conversation_id) else { continue }
+                if !announcedRoutes.contains(route) {
+                    let contacts: [CloudProfile] = (try? await request("rest/v1/profiles?id=eq.\(job.requester.uuidString)&select=*")) ?? []
+                    guard generation == bridgeGeneration, !Task.isCancelled else { return }
+                    guard let contact = contacts.first else { continue }
+                    let name = contact.display_name.unicodeScalars.map { (32...126).contains($0.value) ? String($0) : "?" }.joined()
+                    var payload = Data([UInt8(contact.avatar_id), 1]); payload.append(Data(name.utf8.prefix(32)))
+                    if let frame = try? DeviceFrame(type: .contactUpsert, route: route, payload: payload), radio?.sendFrame(frame) == true { announcedRoutes.insert(route) }
+                    else { continue }
+                }
+                let parts = job.job_hex.split(separator: " ")
+                let decoded = parts.map { UInt8($0, radix: 16) }
+                guard !parts.isEmpty, parts.allSatisfy({ $0.count == 2 }),
+                      decoded.allSatisfy({ $0 != nil }),
+                      decoded.count <= DeviceFrame.maximumPayload - 4 else {
+                    let _: CloudComputeJob? = try? await request(
+                        BridgeAPI.computeFinish,
+                        body: ["p_job": job.job_id.uuidString, "p_device": deviceID, "p_instance": bridgeInstance.uuidString, "p_result_text": NSNull(), "p_error": "malformed job hex"] as [String: Any]
+                    )
+                    continue
+                }
+                let bytes = decoded.compactMap { $0 }
+                guard nextToken < UInt32.max else { continue }
+                let token = nextToken; nextToken += 1
+                do {
+                    let _: CloudComputeJob = try await request(
+                        BridgeAPI.computeClaim,
+                        body: ["p_job": job.job_id.uuidString, "p_device": deviceID, "p_instance": bridgeInstance.uuidString]
+                    )
+                } catch { continue }
+                guard generation == bridgeGeneration, !Task.isCancelled else { return }
+                var payload = Data([UInt8(token >> 24), UInt8((token >> 16) & 255), UInt8((token >> 8) & 255), UInt8(token & 255)])
+                payload.append(contentsOf: bytes)
+                guard let frame = try? DeviceFrame(type: .computeJob, route: route, payload: payload), radio?.sendFrame(frame) == true else { continue }
+                let reply: Data? = await withCheckedContinuation { continuation in
+                    bridgeComputeWaiters[token] = (job.job_id, continuation)
+                    Task { [weak self] in
+                        try? await Task.sleep(nanoseconds: 8_000_000_000)
+                        guard let self, let pending = self.bridgeComputeWaiters[token], pending.job == job.job_id else { return }
+                        self.bridgeComputeWaiters.removeValue(forKey: token); pending.continuation.resume(returning: nil)
+                    }
+                }
+                guard generation == bridgeGeneration, !Task.isCancelled else { return }
+                if let reply, reply.count == 9 {
+                    let value = reply.suffix(4).reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+                    let text = reply[4] == 0
+                        ? "\(value) / \(String(format: "0x%08X", value))"
+                        : "Tomato rejected the job (status \(reply[4]))."
+                    let _: CloudComputeJob? = try? await request(
+                        BridgeAPI.computeFinish,
+                        body: ["p_job": job.job_id.uuidString, "p_device": deviceID, "p_instance": bridgeInstance.uuidString, "p_result_text": text, "p_error": NSNull()] as [String: Any]
+                    )
+                }
+                // Timeout: leave claimed. The web waiter cancels or a later cycle
+                // re-claims it stale; a late Tomato answer is never replayed blindly.
+            }
             bridgeState = .online
             if let status = try? DeviceFrame(type: .status, payload: Data([2])) { _ = radio?.sendFrame(status) }
             if error.contains("hold the Tomato bridge") || error.contains("not provisioned") {
@@ -342,13 +568,28 @@ final class CloudSession: ObservableObject {
             bridgeState = .internetLost
             if let status = try? DeviceFrame(type: .status, payload: Data([1])) { _ = radio?.sendFrame(status) }
             let message = error.localizedDescription
-            if message.lowercased().contains("provision") {
+            let lower = message.lowercased()
+            if lower.contains("provision") {
                 let id = profile?.id.uuidString ?? "unknown"
                 self.error = "This account can't hold the Tomato bridge yet. Provision it, then reconnect. Profile ID: \(id)"
             } else {
                 self.error = message
             }
             await release(bridgeInstance)
+            radio?.onLink = nil
+            radio?.onBytes = nil
+            radio?.stop()
+            radio = nil
+            parser.reset()
+            bridgeGeneration = UUID()
+            clearComputeWaiters()
+            routes.reset()
+            deliveryTokens.removeAll()
+            announcedRoutes.removeAll()
+            lastForward.removeAll()
+            outboundNonces.removeAll()
+            nextToken = 1
+            bridgeInstance = UUID()
         }
     }
     private func startPolling() {

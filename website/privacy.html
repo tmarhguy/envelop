@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="How Envelop stores identities, messages, queue state, compute jobs, presence, and bridge state.">
+<meta name="theme-color" content="#f7f5ef"><meta name="robots" content="index,follow">
+<link rel="canonical" href="https://tmarhguy.github.io/envelop/privacy.html">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Envelop"><meta property="og:title" content="Envelop privacy"><meta property="og:description" content="A plain-language summary of Envelop data and deletion behavior."><meta property="og:url" content="https://tmarhguy.github.io/envelop/privacy.html"><meta property="og:image" content="https://tmarhguy.github.io/envelop/media/envelop-social-card.webp"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Envelop browser conversations with Tomato"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://tmarhguy.github.io/envelop/media/envelop-social-card.webp">
+<title>Privacy — Envelop</title><link rel="icon" href="favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css?v=20260916"><script src="app.js?v=3e6c3316" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="wrap"><a class="brand" href="./" aria-label="Envelop home"><img src="favicon.svg" width="34" height="34" alt=""><span class="brand-name">Envelop</span></a><nav class="desk-nav" aria-label="Main navigation"><a href="chat/index.html">Chat</a><a href="status.html">Status</a><a href="platforms.html">Platforms</a><a href="privacy.html" aria-current="page">Privacy</a><a href="https://tomato.tmarhguy.com/">Tomato</a></nav><details class="site-menu"><summary aria-label="Open menu"><span></span><span></span><span></span></summary><nav aria-label="All pages"><a href="./">Home</a><a href="chat/index.html">Chat</a><a href="status.html">Status</a><a href="platforms.html">Platforms</a><a href="privacy.html" aria-current="page">Privacy</a><a href="https://tomato.tmarhguy.com/">Explore Tomato</a></nav></details></header>
+<main id="main" class="wrap">
+<section class="info-hero"><p class="eyebrow">PRIVACY AND DATA LIFECYCLE</p><h1>Small network.<br>Real stored messages.</h1><p class="intro">Envelop is an experimental messaging system, not an end-to-end encrypted messenger. Use synthetic or non-sensitive text and do not send secrets.</p></section>
+<section class="info-grid" aria-label="Envelop privacy facts">
+  <article class="info-card"><h2>What the service stores</h2><p>The backend stores anonymous account identity, display name, conversations, message bodies, device queue state, presence heartbeats, bridge leases, compute jobs, and related acknowledgements needed to operate Envelop. Delivery tokens remain session-local in the active bridge.</p></article>
+  <article class="info-card"><h2>Why messages persist</h2><p>Human-to-Tomato messages are durable records so they can wait while the nearby bridge is offline. They remain queued until Tomato returns <code>MESSAGE_ACK</code> and the active bridge records it.</p></article>
+  <article class="info-card"><h2>Local browser state</h2><p>The browser keeps the anonymous session and per-conversation read markers in local storage. “Forget this identity” clears local credentials. It does not request deletion of server-side chat records.</p></article>
+  <article class="info-card"><h2>Leaving Envelop</h2><p>“Leave Envelop” requests deletion of the current profile and its related conversations and messages, then clears local session state. Do not rely on closing a tab as a deletion request.</p></article>
+  <article class="info-card"><h2>Presence and delivery</h2><p>A human online indicator is heartbeat state. Hardware online means an unexpired authenticated bridge lease. Delivered means protocol/backend acceptance—not that a person read the message.</p></article>
+  <article class="info-card"><h2>Virtual execution</h2><p>Virtual Tomato runs in the browser and is visibly labeled. It is not sent to physical hardware and is not queued for later hardware execution. Ordinary web hosting and network requests still reveal standard connection metadata to their providers.</p></article>
+  <article class="info-card wide"><h2>Operator boundary</h2><p>The public browser receives only the project HTTPS URL and public publishable key. Secret or service-role keys must never ship in clients. Envelop has no public native-app downloads; the Android bridge is private and the macOS build is an operator/test surface.</p><p>This page summarizes behavior in the current repository. It is not a promise that a hosted backend has a particular retention, backup, or deletion revision until deployment is checked. <a class="text-link" href="status.html">Read the deployment evidence boundary</a>.</p></article>
+</section>
+</main>
+<footer class="wrap"><a class="brand" href="./"><img src="favicon.svg" width="26" height="26" alt=""><span class="brand-name">Envelop</span></a><p class="disclaimer"><a class="text-link" href="chat/index.html">Chat</a> · <a class="text-link" href="status.html">Status</a> · <a class="text-link" href="platforms.html">Platforms</a></p><a href="https://tomato.tmarhguy.com/">Explore Tomato</a></footer>
+</body>
+</html>

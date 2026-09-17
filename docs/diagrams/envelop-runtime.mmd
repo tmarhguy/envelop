@@ -1,0 +1,9 @@
+flowchart TB
+    PERSON["Person"] --> WEB["Envelop web app"]
+    WEB <-->|"HTTPS · chat, presence, jobs"| CLOUD[("Supabase backend")]
+    CLOUD <-->|"lease · queued work · results"| BRIDGE["Verified nearby bridge<br/>macOS or private Android"]
+    BRIDGE <-->|"BLE UART · ENVELOP/1"| DEVICE["Envelop in Tomato OS"]
+    DEVICE <--> CPU["Tomato CPU"]
+    DEVICE --> BRIDGE --> CLOUD --> WEB
+
+    WEB -.->|"offline compute or explicit preview"| VIRTUAL["Virtual Tomato<br/>browser worker"]
