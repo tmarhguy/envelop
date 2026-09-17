@@ -940,13 +940,7 @@ begin
   select job.id, job.conversation_id, job.requester, job.job_hex
   from public.compute_jobs job
   where job.device_id = p_device
-    and (
-      job.status = 'queued'
-      or (
-        job.status = 'claimed'
-        and job.updated_at < now() - interval '60 seconds'
-      )
-    )
+    and job.status = 'queued'
   order by job.created_at, job.id
   limit 8;
 end;
@@ -983,13 +977,7 @@ begin
       updated_at = now()
   where id = p_job
     and device_id = p_device
-    and (
-      status = 'queued'
-      or (
-        status = 'claimed'
-        and updated_at < now() - interval '60 seconds'
-      )
-    )
+    and status = 'queued'
   returning * into result;
   if not found then
     raise exception 'job unavailable';
@@ -1093,7 +1081,7 @@ begin
       updated_at = now()
   where id = p_job
     and requester = uid
-    and status in ('queued', 'claimed')
+    and status = 'queued'
   returning * into result;
   if found then
     return result;

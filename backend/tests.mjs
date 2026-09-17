@@ -167,6 +167,26 @@ await test('compute jobs remain lease-scoped and durable', async () => {
   );
   await as('owner', () =>
     rpc('bridge_claim_compute_job', [job.id, ids.tomato, instance]));
+  await db.query(
+    "update public.compute_jobs set updated_at=now()-interval '2 minutes' where id=$1",
+    [job.id],
+  );
+  assert.equal(
+    (await as('owner', () =>
+      rpc('bridge_compute_pending', [ids.tomato, instance]))).length,
+    0,
+    'claimed hardware work must never be offered for automatic replay',
+  );
+  await as('owner', () =>
+    assert.rejects(
+      rpc('bridge_claim_compute_job', [job.id, ids.tomato, instance]),
+      /job unavailable/,
+    ));
+  assert.equal(
+    (await as('alice', () => rpc('cancel_compute_job', [job.id])))[0].status,
+    'claimed',
+    'a claimed hardware job must remain ambiguous rather than become virtual-safe',
+  );
   const done = (await as('owner', () =>
     rpc('bridge_finish_compute_job', [
       job.id,

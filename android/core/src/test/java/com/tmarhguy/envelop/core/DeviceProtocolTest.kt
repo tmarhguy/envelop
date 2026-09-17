@@ -12,7 +12,7 @@ val vectors = java.io.File("../../protocol/test-vectors/frames.json")
 assertTrue("Shared protocol vectors missing at ${vectors.canonicalPath}", vectors.isFile)
 val v=r.findAll(vectors.readText()).toList()
 v.forEach{val f=DeviceFrame(DeviceFrameType.fromWire(it.groupValues[1].toInt())!!,it.groupValues[2].toInt(),b(it.groupValues[3]));assertArrayEquals(b(it.groupValues[4]),f.encode());assertEquals(listOf(f),DeviceFrameParser().feed(f.encode()))}
-assertEquals(6,v.size)
+assertEquals(8,v.size)
 }
 
 @Test fun fragmentationNoiseAndCrcRecovery() {

@@ -32,11 +32,16 @@ hardware outcome; it is not permission to rerun the job in Virtual Tomato.
 Only a completed backend hardware job may be labeled Physical/Hardware Tomato.
 
 Shared vectors: `test-vectors/frames.json`; consumed by Swift XCTest and
-`python3 protocol/test-vectors/verify_c.py`. The vectors currently cover core
-framing cases and do not constitute a live-radio or complete application-flow
-test. C callbacks borrow payload storage for the duration of the callback only;
-copy into a bounded application buffer before returning. Do not reenter
-`envelop_feed` from its callback.
+`python3 protocol/test-vectors/verify_c.py`. The vectors cover core framing and
+both compute frame types; they do not constitute a live-radio or complete
+application-flow test. C callbacks borrow payload storage for the duration of
+the callback only; copy into a bounded application buffer before returning. Do
+not reenter `envelop_feed` from its callback.
+
+`OPEN_CHAT` and `CHAT_HISTORY` are defined for device-driven history requests,
+but the current native bridge application handlers do not implement that
+exchange. Do not claim synchronized on-device history until those handlers and
+their lease-scoped backend read contract exist.
 
 The codecs implement framing, not application semantics. Current macOS,
 Android, backend, and Tomato OS support must be checked against their source and
