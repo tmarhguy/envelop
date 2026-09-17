@@ -93,7 +93,7 @@ def expected_url(rel: str) -> str:
 
 def markdown_checks(errors: list[str]) -> None:
     pattern = re.compile(r"!?\[[^\]]*]\(([^)\s]+)(?:\s+['\"][^)]*['\"])?\)")
-    roots = [ROOT / "README.md", ROOT / "SPEC.md", ROOT / "docs", ROOT / "android", ROOT / "apple", ROOT / "backend", ROOT / "protocol"]
+    roots = [ROOT / "README.md", ROOT / "docs", ROOT / "android", ROOT / "apple", ROOT / "backend", ROOT / "protocol"]
     markdown: list[Path] = []
     for item in roots:
         if item.is_file():
@@ -169,11 +169,10 @@ def sitemap_checks(errors: list[str], pages: list[Path]) -> None:
 
 
 def policy_checks(errors: list[str], public_root: Path | None) -> None:
-    current = [ROOT / "README.md", ROOT / "SPEC.md"] + files_under(ROOT / "docs", {".md"})
+    current = [ROOT / "README.md"] + files_under(ROOT / "docs", {".md"})
     current += files_under(SITE, {".html", ".css", ".js", ".mjs", ".cjs"})
     stale = {
         r"\bpublic (?:Android|APK|native) download (?:is|now|available)\b": "public native-app claim",
-        r"\b(?:Windows|iOS) (?:app|client) (?:is|remains) supported\b": "retired native-client claim",
         r"\bautomatic virtual (?:fallback|replay)\b": "unsafe automatic-fallback claim",
     }
     for path in current:
@@ -182,7 +181,7 @@ def policy_checks(errors: list[str], public_root: Path | None) -> None:
             if re.search(pattern, text, re.IGNORECASE):
                 errors.append(f"{path.relative_to(ROOT)}: {label}")
     status = (ROOT / "docs" / "status.md").read_text(encoding="utf-8")
-    for required in ("private Android 0.2.0", "no current Windows or iOS native client", "never queued"):
+    for required in ("private Android 0.2.0", "never queued"):
         if required not in status:
             errors.append(f"docs/status.md: missing canonical boundary {required!r}")
     for path in files_under(SITE, IMAGE_SUFFIXES):

@@ -36,5 +36,4 @@ See [bridge operations](../docs/bridge-operations.md).
 Packaging and Swift tests verify source behavior only. They do not prove which
 backend revision is deployed or that matching Tomato hardware is online.
 
-This package targets macOS only. The former iOS project and packaging path were removed because the website is the general mobile client.
-See the [native retirement decision](../docs/windows-ios-retirement.md).
+This package targets macOS only.

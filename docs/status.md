@@ -14,8 +14,6 @@ hardware evidence.
 - The macOS 14 application is an operator bridge and test chat client.
 - The private Android 0.2.0 application combines owner chat, administration,
   compute framing, and a foreground Tomato bridge. It is not a public download.
-- There is no current Windows or iOS native client. The removed clients and
-  packages are historical, not supported surfaces.
 - Envelop inside Tomato OS is maintained in the Tomato repository. The web,
   backend, native bridge apps, and shared device protocol are maintained here.
 
@@ -71,6 +69,8 @@ permits one unexpired authenticated bridge lease at a time.
 - Current source implementation and local tests do not by themselves prove
   that the production backend schema, nearby bridge, and programmed FPGA all
   run matching revisions.
+- `OPEN_CHAT` and `CHAT_HISTORY` exist in the wire contract, but current native
+  bridge handlers do not yet provide device-driven history synchronization.
 
 ## Backend lifecycle
 
@@ -93,7 +93,7 @@ permits one unexpired authenticated bridge lease at a time.
 | Area | Canonical status |
 |---|---|
 | Web chat | Implemented in repository source; public deployment revision must be checked separately. |
-| Virtual fallback | Implemented and unit-tested as an explicit terminal fallback, never an automatic replay of an ambiguous hardware job. |
+| Virtual fallback | Implemented and unit-tested in the browser. Offline compute can run virtually immediately; fallback after a hardware attempt requires a separate action and a confirmed terminal non-result. Ambiguous hardware work is never replayed automatically. |
 | Backend | One destructive schema plus local contract regression tests; hosted migration state is not established by this file. |
 | macOS | Source-supported operator/test client on macOS 14, package version 0.2.0. |
 | Android | Private source-supported bridge app, package version 0.2.0; no public artifact claim. |
