@@ -76,7 +76,12 @@ test('voice ownership prevents untruthful attribution', () => {
   ]) {
     assert.equal(voiceForEvent(event), VOICES.ENVELOP);
   }
-  for (const event of [EVENTS.BUSY, EVENTS.TIMEOUT, EVENTS.EXECUTION_FAULT]) {
+  for (const event of [
+    EVENTS.UNANSWERED_REQUEST,
+    EVENTS.BUSY,
+    EVENTS.TIMEOUT,
+    EVENTS.EXECUTION_FAULT,
+  ]) {
     assert.equal(voiceForEvent(event), VOICES.TOMATO);
   }
 
@@ -92,4 +97,5 @@ test('catalogs contain no emoji or unreachable machine personalities', () => {
   const text = JSON.stringify(phraseCatalogs);
   assert.doesNotMatch(text, /\p{Extended_Pictographic}/u);
   assert.doesNotMatch(text, /divide[- ]by[- ]zero|raw lut|overflow/i);
+  assert.doesNotMatch(text, /Try \/help\. I run bounded integer jobs\./i);
 });

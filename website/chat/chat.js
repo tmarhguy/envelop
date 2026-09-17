@@ -8,7 +8,7 @@ const SUPABASE_KEY = 'sb_publishable_nhog8psQAljHGK3RvIyp-Q_26yCYmsF';
 const DEVICE_ID = '00000000-0000-0000-0000-000000000001';
 const STORE_KEY = 'envelop.web.session.v1';
 const READ_KEY = 'envelop.web.read.v1';
-const ASSET_VERSION = '20260916-signoff';
+const ASSET_VERSION = '20260916-bounded-division';
 const POLL_ACTIVE_MS = 3000;
 const POLL_BACKOFF_MS = [10000, 20000, 30000];
 const BEAT_MS = 15000;
@@ -51,6 +51,8 @@ const state = {
 const localJobs = [];
 let jobViewsPromise = null;
 let jobViewsModule = null;
+let helpGuidePromise = null;
+let helpGuideModule = null;
 const messageTabs = new Map();
 const expandedMessages = new Set();
 let pendingDraft = null;
@@ -70,6 +72,16 @@ function jobViews() {
     });
   }
   return jobViewsPromise;
+}
+
+function helpGuide() {
+  if (!helpGuidePromise) {
+    helpGuidePromise = import('./help.mjs?v=' + ASSET_VERSION).then(module => {
+      helpGuideModule = module;
+      return module;
+    });
+  }
+  return helpGuidePromise;
 }
 
 function updateJobView(job) {
@@ -216,6 +228,12 @@ function markAwaitTomato() {
     state.awaitTomatoAt = 0;
     syncTyping();
   }, 25000);
+}
+
+function clearAwaitTomato() {
+  state.awaitTomatoAt = 0;
+  clearTimeout(typingTimer);
+  syncTyping();
 }
 
 function typingDots() {
@@ -508,6 +526,13 @@ async function send() {
     return;
   }
   if (state.peer.is_device) {
+    const guide = await helpGuide();
+    if (guide.isHelpRequest(body)) {
+      await addHelpJob(body);
+      input.value = '';
+      showError('');
+      return;
+    }
     let compiled;
     let compiler;
     try {
@@ -556,22 +581,21 @@ async function send() {
       return;
     }
     // Plain chat always sends; the server queues while hardware is away.
-    // Firmware only auto-replies to canonical "Hello" and "/help": normalize
-    // greeting variants (e.g. "Hello, Tomato.") client-side, same as the
-    // Virtual Tomato worker, so hardware and virtual agree.
+    // Firmware auto-replies to canonical "Hello": normalize greeting variants
+    // (e.g. "Hello, Tomato.") client-side, same as the Virtual Tomato worker.
     const greet = compiler.normalizeGreeting ? compiler.normalizeGreeting(body) : null;
-    if (greet || /^(help|what can you do)[?.!]*$/i.test(body.trim())) {
-      const normalized = greet || '/help';
+    if (greet) {
       markAwaitTomato();
       setBusy(true);
       try {
         await request('rest/v1/rpc/send_message' , {
-          body: { p_conversation: state.conversation, p_body: normalized, p_nonce: crypto.randomUUID() },
+          body: { p_conversation: state.conversation, p_body: greet, p_nonce: crypto.randomUUID() },
         });
         input.value = '';
         showError('');
         await fetchMessages();
       } catch (err) {
+        clearAwaitTomato();
         showError(err.message);
       } finally {
         setBusy(false);
@@ -866,6 +890,111 @@ function renderAdmin() {
   box.append(label, flush);
 }
 
+async function addHelpJob(body = '/help') {
+  const guide = await helpGuide();
+  localJobs.push({
+    id: crypto.randomUUID(),
+    conversation: state.conversation,
+    body,
+    name: state.profile && state.profile.display_name,
+    created_at: new Date().toISOString(),
+    help: true,
+    guide: guide.HELP_GUIDE,
+  });
+  renderThread();
+}
+
+function renderHelpJob(job) {
+  const card = document.createElement('article');
+  card.className = 'chat-job help-guide';
+  const query = document.createElement('div');
+  query.className = 'job-text';
+  query.textContent = job.body;
+  card.append(query);
+
+  const title = document.createElement('h2');
+  title.textContent = job.guide.title;
+  card.append(title);
+  const intro = document.createElement('p');
+  intro.className = 'help-intro';
+  intro.textContent = job.guide.intro;
+  card.append(intro);
+
+  const groups = document.createElement('div');
+  groups.className = 'help-groups';
+  for (const group of job.guide.groups) {
+    const section = document.createElement('section');
+    const heading = document.createElement('h3');
+    heading.textContent = group.title;
+    section.append(heading);
+    const list = document.createElement('ul');
+    for (const option of group.options) {
+      const item = document.createElement('li');
+      const label = document.createElement('span');
+      label.textContent = option.label;
+      const example = document.createElement('code');
+      example.textContent = option.example;
+      item.append(label, example);
+      list.append(item);
+    }
+    section.append(list);
+    groups.append(section);
+  }
+  card.append(groups);
+
+  const technical = document.createElement('small');
+  technical.className = 'job-technical help-technical';
+  technical.textContent = 'ENVELOP_HELP · LOCAL';
+  card.append(technical);
+  return card;
+}
+
+function appendFallbackSupport(parent, rawReply) {
+  const hint = document.createElement('p');
+  hint.className = 'fallback-hint';
+  hint.textContent = 'Try /help for a list of options.';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = 'Show /help options';
+  button.addEventListener('click', () => addHelpJob('/help'));
+  hint.append(document.createTextNode(' '), button);
+  parent.append(hint);
+
+  const details = document.createElement('details');
+  details.className = 'job-exec fallback-raw';
+  const summary = document.createElement('summary');
+  summary.textContent = 'View original Tomato reply';
+  const raw = document.createElement('pre');
+  raw.textContent = rawReply;
+  details.append(summary, raw);
+  parent.append(details);
+}
+
+function renderLegacyFallback(message) {
+  const card = document.createElement('article');
+  card.className = 'chat-msg them legacy-fallback';
+  const fallback = helpGuideModule.legacyUnansweredDetails(message.body);
+  const outcome = jobViewsModule.personalityOutcome(
+    fallback.event,
+    message.id || message.body,
+  );
+  const human = document.createElement('div');
+  human.className = 'job-human';
+  human.textContent = (outcome.voice === 'tomato' ? 'Tomato: ' : 'Envelop: ') + outcome.text;
+  const technical = document.createElement('small');
+  technical.className = 'job-technical';
+  technical.textContent = outcome.technical;
+  card.append(human, technical);
+  appendFallbackSupport(card, message.body);
+  const stamp = document.createElement('time');
+  const date = new Date(message.created_at);
+  stamp.textContent = isNaN(date) ? '' : date.toLocaleString(undefined, {
+    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  });
+  card.append(stamp);
+  return card;
+}
+
 function renderThread() {
   const empty = $('chat-empty');
   const wrap = $('chat-convo');
@@ -907,6 +1036,15 @@ function renderThread() {
   const nearBottom = fresh || (log.scrollHeight - prevTop - log.clientHeight < 80);
   box.innerHTML = '';
   for (const m of state.messages) {
+    const isTomatoFallback = m.sender_id !== (state.profile && state.profile.id)
+      && state.peer.is_device
+      && helpGuideModule
+      && jobViewsModule
+      && helpGuideModule.legacyUnansweredDetails(m.body);
+    if (isTomatoFallback) {
+      box.appendChild(renderLegacyFallback(m));
+      continue;
+    }
     const div = document.createElement('div');
     div.className = 'chat-msg ' + (m.sender_id === (state.profile && state.profile.id) ? 'me' : 'them');
     appendMessageViews(div, m.id, m.body, null, null, 'UTF-8 message bytes', ['Text','Hex']);
@@ -963,6 +1101,13 @@ async function previewDraft() {
     const me = state.profile && state.profile.id;
     const last = [...state.messages].reverse().find(m => m.sender_id === me);
     if (last) body = last.body;
+  }
+  const guide = await helpGuide();
+  if (guide.isHelpRequest(body)) {
+    await addHelpJob(body);
+    input.value = '';
+    showError('');
+    return;
   }
   if (!body || !state.conversation || !state.peer) {
     showError('Type a message first, then preview it in Virtual Tomato.');
@@ -1119,6 +1264,9 @@ if (typeof window !== 'undefined') {
         if (event.key === 'Escape') { menu.open = false; menu.querySelector('summary').focus(); }
       });
     }
+    Promise.all([jobViews(), helpGuide()])
+      .then(() => { if (state.profile) renderThread(); })
+      .catch(() => { /* surfaced when the related action is used */ });
     restore();
   });
 }
@@ -1138,11 +1286,12 @@ function appendMessageViews(parent,id,text,program,bytes,version,modes) {
   parent.append(tabs,content);paint();
 }
 function renderJob(job) {
+ if(job.help)return renderHelpJob(job);
  const card=document.createElement('article');card.className='chat-job';
  const q=document.createElement('div');q.className='job-text';q.textContent=job.body;card.append(q);
  if(job.compute&&job.understood){
   const u=document.createElement('p');u.className='job-understood';
-  const lab=document.createElement('small');lab.textContent='Envelop understood';u.append(lab);
+  const lab=document.createElement('small');lab.textContent='Understood as';u.append(lab);
   const line=document.createElement('code');line.textContent=job.understood;u.append(line);card.append(u);
  }
  updateJobView(job);
@@ -1161,8 +1310,12 @@ function renderJob(job) {
  if(view.technical){
   const technical=document.createElement('small');technical.className='job-technical';technical.textContent=view.technical;statusCopy.append(technical);
  }
+ if(view.guidance){
+  const guidance=document.createElement('span');guidance.className='job-guidance';guidance.textContent=view.guidance;statusCopy.append(guidance);
+ }
  status.append(statusCopy);card.append(status);
  if (!view.resultFirst) appendReplies();
+ if(job.fallbackRaw)appendFallbackSupport(card,job.fallbackRaw);
    if (view.phase==='failed' && job.compute && job.hardwareAttempt && job.virtualSafe && !(job.replies&&job.replies.length)) {
      const note=document.createElement('p');note.className='job-status';
      note.textContent='The durable hardware job is terminal — nothing will replay later.';
@@ -1303,9 +1456,22 @@ function runVirtual(job) {
  const timer=setTimeout(()=>{if(job.phase==='executing')failJobWithPersonality(job,'TIMEOUT',{},job.id+':virtual-timeout');else failJobWithEnvelop(job,'Could not start Virtual Tomato in time.','VIRTUAL_START_TIMEOUT');finish();},30000);
  function finish(){clearTimeout(timer);worker.terminate();renderThread();}
  worker.onerror=()=>{failJobWithEnvelop(job,'Could not start Virtual Tomato. Reload the page and try again.','VIRTUAL_WORKER_ERROR');finish();};
-  worker.onmessage=({data})=>{if(data.kind==='compiled'){job.program=data.program;job.hex=data.hex;job.version=data.version;if(data.understood)job.understood=data.understood;renderThread();}
+ worker.onmessage=async({data})=>{if(data.kind==='compiled'){job.program=data.program;job.hex=data.hex;job.version=data.version;if(data.understood)job.understood=data.understood;renderThread();}
  else if(data.kind==='phase'&&data.phase==='executing'){setJobPhase(job,'executing');renderThread();}
- else if(data.kind==='result'){job.replies=data.replies;job.target=data.target;setJobPhase(job,'succeeded');finish();}
+ else if(data.kind==='result'){
+  const guide=await helpGuide();
+  const fallback=(data.replies||[])
+    .map(reply=>guide.legacyUnansweredDetails(reply))
+    .find(Boolean);
+  if(fallback){
+   job.fallbackRaw=fallback.rawReply;
+   job.replies=[];
+   failJobWithPersonality(job,fallback.event,{},job.id+':'+job.body);
+  }else{
+   job.replies=data.replies;job.target=data.target;setJobPhase(job,'succeeded');
+  }
+  finish();
+ }
  else if(data.kind==='error'){
    const error=data.error||{};
    const compile=jobViewsModule.compileOutcome(error,job.body);

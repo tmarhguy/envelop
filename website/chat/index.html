@@ -21,8 +21,8 @@
 <title>Chat — Envelop</title>
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../style.css?v=20260916">
-<link rel="stylesheet" href="chat.css?v=20260916-signoff">
-<script src="chat.js?v=20260916-signoff" defer></script>
+<link rel="stylesheet" href="chat.css?v=20260916-bounded-division">
+<script src="chat.js?v=20260916-bounded-division" defer></script>
 </head>
 <body class="chat-page">
 <a class="skip" href="#chat">Skip to chat</a>
@@ -73,7 +73,7 @@
       <details class="welcome-more">
         <summary>How it works</summary>
         <div>
-          <p>Enter a name and you're visible while you're here. Text whoever is online, and send Tomato a hello whenever its verified bridge is up. If physical Tomato is offline, notes queue automatically and deliver when its bridge is back—or preview any draft in Virtual Tomato from the chat box (labeled virtual, never sent to hardware). “Leave Envelop” requests deletion of your profile and related chats.</p>
+          <p>Enter a name and you're visible while you're here. Text whoever is online, and send Tomato a hello whenever its verified bridge is up. If physical Tomato is offline, notes queue for its return while supported compute runs immediately in Virtual Tomato. You can also preview any draft explicitly in Virtual Tomato from the chat box; it stays labeled virtual and is never sent to hardware. “Leave Envelop” requests deletion of your profile and related chats.</p>
           <p>Try compute: <code>What is (57 + 19) AND 0x3F?</code> → Tomato replies <code>12 / 0x0000000C</code>. <a href="../#compute">How compute works</a>. An online authenticated lease uses a durable physical-hardware job; otherwise the result is clearly labeled Virtual Tomato. Ambiguous hardware jobs are never replayed virtually.</p>
         </div>
       </details>
@@ -111,7 +111,7 @@
             </div>
           </div>
           <div class="vt-banner" id="vt-banner" hidden>
-            <span>Hardware offline — notes queue automatically. Preview still runs in Virtual Tomato.</span>
+            <span>Hardware offline — notes queue automatically; compute and explicit previews run in Virtual Tomato.</span>
           </div>
           <div class="chat-composer">
             <input id="chat-draft" type="text" maxlength="256" placeholder="Message" aria-label="Message" autocomplete="off">
