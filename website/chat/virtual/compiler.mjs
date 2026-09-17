@@ -181,8 +181,8 @@ export function compile(source) {
   };
   expr=expandFn(expr,0,false);
   for(const [w,o] of [['plus','+'],['minus','-'],['and','&'],['or','|'],['xor','^']])expr=expr.replace(new RegExp('\\b'+w+'\\b','gi'),o);
-  if(!/^\/calc\b/i.test(text)&&!/[\d()+\-&|^~]/.test(expr))return null;
-  if(!/^\/calc\b/i.test(text)&&!/^(?:[\d(~+\-^&|]|R[0-7]\b|(?:maskadd|xorand|andadd|oradd|xoradd|andn|orn)\s*\()/i.test(expr)&&!(/\d/.test(expr)&&/[+\-&|^~]|\bof\b/.test(expr)))return null;
+  if(!/^\/calc\b/i.test(text)&&!/[\d()*+/\-&|^~]/.test(expr))return null;
+  if(!/^\/calc\b/i.test(text)&&!/^(?:[\d(~+*/\-^&|]|R[0-7]\b|(?:maskadd|xorand|andadd|oradd|xoradd|andn|orn)\s*\()/i.test(expr)&&!(/\d/.test(expr)&&/[+*/\-&|^~]|\bof\b/.test(expr)))return null;
   const reserved=new Set();
   const SINGLE=new Set(['maskadd','xorand','andadd','oradd','xoradd','andn','orn']);
   for(const w of expr.match(/(?<![0-9A-Za-z_])[A-Za-z_][A-Za-z0-9_]*/g)||[]){
@@ -191,9 +191,9 @@ export function compile(source) {
    else if(SINGLE.has(w.toLowerCase()))continue;
    else unknownError(w,prepared);
   }
-  const tokens=expr.match(/0x[\da-f]+|0b[01]+|\d+|[A-Za-z_][A-Za-z0-9_]*|[()+\-&|^~]|\S/gi)||[];
-  let i=0;const lines=[],free=[7,6,5,4,3,2,1,0].filter(r=>!reserved.has(r)),prec={'|':1,'^':2,'&':3,'+':4,'-':4};
-  const OPM={'+':'ADD','-':'SUB','&':'AND','|':'OR','^':'XOR'},SYM={ADD:'+',SUB:'-',AND:'&',OR:'|',XOR:'^'};
+  const tokens=expr.match(/0x[\da-f]+|0b[01]+|\d+|[A-Za-z_][A-Za-z0-9_]*|[()*+/\-&|^~]|\S/gi)||[];
+  let i=0;const lines=[],free=[7,6,5,4,3,2,1,0].filter(r=>!reserved.has(r)),prec={'|':1,'^':2,'&':3,'+':4,'-':4,'*':5,'/':5};
+  const OPM={'+':'ADD','-':'SUB','*':'MUL','/':'DIV','&':'AND','|':'OR','^':'XOR'},SYM={ADD:'+',SUB:'-',MUL:'*',DIV:'/',AND:'&',OR:'|',XOR:'^'};
   const TRI={maskadd:'MASKADD',xorand:'XORAND',andadd:'ANDADD',oradd:'ORADD',xoradd:'XORADD'};
   const BIN2={andn:'ANDN',orn:'ORN'};
   function parseAST(min=0,depth=0){
@@ -217,9 +217,9 @@ export function compile(source) {
     }
     else unknownError(t,prepared);
    }
-   else if(t==='*'||t==='/'||t==='%')fail('UNSUPPORTED_OPERATION',`'${t}' is not installed. Tomato runs + - & | ^ ~.`,{operation:t});
-   else fail('MALFORMED_EXPRESSION','Use numbers, parentheses and + - & | ^ ~.',{reason:'invalid-syntax'});
-   if(tokens[i]==='*'||tokens[i]==='/'||tokens[i]==='%')fail('UNSUPPORTED_OPERATION',`'${tokens[i]}' is not installed. Tomato runs + - & | ^ ~.`,{operation:tokens[i]});
+   else if(t==='%')fail('UNSUPPORTED_OPERATION',`'${t}' is not installed. Tomato runs + - * / & | ^ ~.`,{operation:t});
+   else fail('MALFORMED_EXPRESSION','Use numbers, parentheses and + - * / & | ^ ~.',{reason:'invalid-syntax'});
+   if(tokens[i]==='%')fail('UNSUPPORTED_OPERATION',`'${tokens[i]}' is not installed. Tomato runs + - * / & | ^ ~.`,{operation:tokens[i]});
    while(prec[tokens[i]]>=min){const op=tokens[i++],b=parseAST(prec[op]+1,depth+1);node={k:'bin',op:OPM[op],l:node,r:b};}
    return node;
   }
@@ -232,6 +232,7 @@ export function compile(source) {
   };
   const copy=a=>{const t=alloc();lines.push(`OR R${t},R${a},R${a}`);return t;};
   const alloc=()=>{if(!free.length)fail('OUT_OF_RANGE','Expression needs more than eight registers.',{range:'register-count',max:8});return free.pop();};
+  const mulCost=value=>{const bits=value.toString(2);return value<=1?0:1+(bits.length-1)+[...bits.slice(1)].filter(bit=>bit==='1').length;};
   function gen(n,depth=0){
    if(depth>32)fail('MALFORMED_EXPRESSION','Expression is too deeply nested.',{reason:'nesting-depth',maxDepth:32});
    if(n.k==='const'){const r=alloc();lines.push(`R${r}=${n.v}`);return r;}
@@ -239,6 +240,40 @@ export function compile(source) {
    if(n.k==='not'){let a=gen(n.a,depth+1);if(reserved.has(a))a=copy(a);const c=alloc();lines.push(`R${c}=4294967295`);lines.push(`XOR R${a},R${a},R${c}`);free.push(c);return a;}
    if(n.k==='tri'){const regs=n.args.map(a=>gen(a,depth+1));let ra=regs[0];const rb=regs[1],rc=regs[2];if(reserved.has(ra))ra=copy(ra);lines.push(`${n.op} R${ra},R${ra},R${rb},R${rc}`);for(const t of [rb,rc]){if(!reserved.has(t)&&t!==ra)free.push(t);}return ra;}
    if(n.k==='bin2'){let ra=gen(n.args[0],depth+1);const rb=gen(n.args[1],depth+1);if(reserved.has(ra))ra=copy(ra);lines.push(`${n.op} R${ra},R${ra},R${rb}`);if(!reserved.has(rb)&&rb!==ra)free.push(rb);return ra;}
+   if(n.k==='bin'&&n.op==='MUL'){
+    const choices=[];
+    if(n.r.k==='const'&&n.r.v>=0)choices.push({value:n.l,multiplier:n.r.v});
+    if(n.l.k==='const'&&n.l.v>=0)choices.push({value:n.r,multiplier:n.l.v});
+    if(!choices.length)fail('UNSUPPORTED_OPERATION','Multiplication needs one non-negative constant factor.',{operation:'*',reason:'constant-factor-required'});
+    choices.sort((a,b)=>mulCost(a.multiplier)-mulCost(b.multiplier));
+    const {value,multiplier}=choices[0];
+    if(multiplier===0)return gen({k:'const',v:0,raw:'0'},depth+1);
+    const base=gen(value,depth+1);
+    if(multiplier===1)return base;
+    const acc=copy(base);
+    for(const bit of multiplier.toString(2).slice(1)){
+     lines.push(`ADD R${acc},R${acc},R${acc}`);
+     if(bit==='1')lines.push(`ADD R${acc},R${acc},R${base}`);
+    }
+    if(!reserved.has(base)&&base!==acc)free.push(base);
+    return acc;
+   }
+   if(n.k==='bin'&&n.op==='DIV'){
+    if(n.l.k!=='const'||n.r.k!=='const'||n.l.v<0||n.r.v<0)fail('UNSUPPORTED_OPERATION','Division currently needs two non-negative constants.',{operation:'/',reason:'non-negative-constants-required'});
+    if(n.r.v===0)fail('MALFORMED_EXPRESSION','Division by zero is undefined.',{operation:'/',reason:'divide-by-zero'});
+    const quotient=Math.floor(n.l.v/n.r.v);
+    if(quotient>13)fail('OUT_OF_RANGE','That quotient needs more than the 32-instruction division budget.',{range:'division-quotient',value:quotient,min:0,max:13});
+    const dividend=gen(n.l,depth+1),divisor=gen(n.r,depth+1);
+    if(quotient===0){lines.push(`SUB R${dividend},R${dividend},R${dividend}`);free.push(divisor);return dividend;}
+    const result=alloc(),one=alloc();
+    lines.push(`R${result}=0`,`R${one}=1`);
+    for(let step=0;step<quotient;step++){
+     lines.push(`SUB R${dividend},R${dividend},R${divisor}`);
+     lines.push(`ADD R${result},R${result},R${one}`);
+    }
+    free.push(dividend,divisor,one);
+    return result;
+   }
    let a=gen(n.l,depth+1),b=gen(n.r,depth+1);
    if(reserved.has(a))a=copy(a);
    lines.push(`${n.op} R${a},R${a},R${b}`);
@@ -246,7 +281,7 @@ export function compile(source) {
    return a;
   }
   const root=parseAST();
-  if(i!==tokens.length){const t=tokens[i];if(t==='*'||t==='/'||t==='%')fail('UNSUPPORTED_OPERATION',`'${t}' is not installed. Tomato runs + - & | ^ ~.`,{operation:t});fail('MALFORMED_EXPRESSION','Unsupported expression. Try 23 + 19.',{reason:'trailing-token'});}
+  if(i!==tokens.length){const t=tokens[i];if(t==='%')fail('UNSUPPORTED_OPERATION',`'${t}' is not installed. Tomato runs + - * / & | ^ ~.`,{operation:t});fail('MALFORMED_EXPRESSION','Unsupported expression. Try 23 + 19.',{reason:'trailing-token'});}
   let rootShown=show(root);if(rootShown.startsWith('(')&&rootShown.endsWith(')'))rootShown=rootShown.slice(1,-1);
   understood=rootShown;
   const rr=gen(root);

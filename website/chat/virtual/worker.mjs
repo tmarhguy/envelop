@@ -1,5 +1,5 @@
 import {Tomato,loadImage,makeFrame} from './tomato-cpu.mjs?v=20260916-signoff';
-import {CompileError,compile,hex,normalizeGreeting} from './compiler.mjs?v=20260916-signoff';
+import {CompileError,compile,hex,normalizeGreeting} from './compiler.mjs?v=20260916-bounded-division';
 self.onmessage=async({data})=>{
  try{
    const job=compile(data.text);postMessage({kind:'compiled',program:job?.canonical||'Chat text · no assembly program is sent.',hex:hex(job?.bytes||new TextEncoder().encode(data.text)),version:job?'Remote bytecode v1':'UTF-8 chat text',understood:job?.understood||null});

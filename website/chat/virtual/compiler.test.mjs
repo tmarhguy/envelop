@@ -26,7 +26,11 @@ test('nl_fixtures: controlled language, understood, fail-closed errors', { skip:
     assert.equal(r.canonical, c.canonical, `${c.input}: canonical`);
   }
   for (const c of fix.chat) assert.equal(compile(c.input), null, `${c.input}: expected chat`);
-  for (const c of fix.errors) assert.throws(() => compile(c.input), e => e.message.includes(c.js_error), `${c.input}: expected /${c.js_error}/`);
+  const browserPromotions = new Set(['5 * 3', 'product of 2 and 3', 'what is 10 / 2?']);
+  for (const c of fix.errors) {
+    if (browserPromotions.has(c.input)) continue;
+    assert.throws(() => compile(c.input), e => e.message.includes(c.js_error), `${c.input}: expected /${c.js_error}/`);
+  }
 });
 
 function compileError(input) {
@@ -63,7 +67,7 @@ test('structured expression errors retain human-readable messages and safe detai
   });
   assert.match(malformed.message, /two arguments or more/);
 
-  for (const operation of ['/', '%', '*']) {
+  for (const operation of ['%']) {
     const unsupported = compileError(`/calc 7 ${operation} 3`);
     assert.equal(unsupported.code, 'UNSUPPORTED_OPERATION');
     assert.deepEqual(unsupported.details, { operation });
@@ -106,6 +110,101 @@ test('successful output and ordinary-chat classification remain stable', () => {
   for (const message of ['Hello Tomato', 'tomatoes are red', 'meet me after lunch']) {
     assert.equal(compile(message), null);
   }
+});
+
+test('clear calculations survive harmless conversational filler', () => {
+  for (const input of [
+    'so, cos so 78 + 34',
+    'so what is 78 + 34 equal to?',
+    'well, 78 + 34 and all',
+    'okay then, actually 78 plus 34 please',
+  ]) {
+    const result = compile(input);
+    assert.equal(result.understood, '78 + 34', input);
+    assert.match(result.canonical, /ADD R0,R0,R1\nRETURN R0$/);
+  }
+
+  const unknown = compileError('/calc 2 plux 3');
+  assert.equal(unknown.details.token, 'plux');
+  assert.equal(unknown.details.guidance, 'Closest supported operator: plus.');
+  assert.equal(compileError('so what is 8 + equal to?').code, 'MALFORMED_EXPRESSION');
+  assert.equal(compileError('/calc 2 squared + 3').details.token, 'squared');
+  assert.equal(compileError('xorr of 5 and 3').details.guidance, 'Closest supported operator: xor.');
+  assert.equal(compile('so what is the weather equal to?'), null);
+  assert.equal(compile('cosine is useful'), null);
+});
+
+test('complete semantic spans execute without confirmation', () => {
+  const subtraction = compile('ohj yea, you are so good, ok what is 34 - 2345');
+  assert.equal(subtraction.understood, '34 - 2345');
+  assert.match(subtraction.canonical, /SUB R0,R0,R1\nRETURN R0$/);
+
+  const nested = compile('i can teype gibveradklaeira adkn adihe adn adraioerh 345 + nand(2345, 3534, 235)');
+  assert.equal(nested.understood, '345 + ~(((2345 & 3534) & 235))');
+  assert.match(nested.canonical, /ADD R0,R0,R1\nRETURN R0$/);
+});
+
+test('constant multiplication lowers to an ADD graph executed by Tomato', () => {
+  const result = compile('34 * 3');
+  assert.equal(result.understood, '34 * 3');
+  assert.equal(result.canonical, [
+    '/run',
+    'R0=34',
+    'OR R1,R0,R0',
+    'ADD R1,R1,R1',
+    'ADD R1,R1,R0',
+    'RETURN R1',
+  ].join('\n'));
+
+  assert.equal(compile('product of 2 and 3').understood, '2 * 3');
+  assert.equal(compile('times(7, 4)').understood, '7 * 4');
+
+  const dynamic = compileError('/calc R1 * R2');
+  assert.equal(dynamic.code, 'UNSUPPORTED_OPERATION');
+  assert.deepEqual(dynamic.details, {
+    operation: '*',
+    reason: 'constant-factor-required',
+  });
+});
+
+test('bounded constant division lowers to repeated Tomato subtraction', () => {
+  const equal = compile('345 / 345');
+  assert.equal(equal.understood, '345 / 345');
+  assert.equal(equal.canonical, [
+    '/run',
+    'R0=345',
+    'R1=345',
+    'R2=0',
+    'R3=1',
+    'SUB R0,R0,R1',
+    'ADD R2,R2,R3',
+    'RETURN R2',
+  ].join('\n'));
+
+  const floor = compile('7 / 3');
+  assert.equal(floor.understood, '7 / 3');
+  assert.equal(floor.canonical.match(/^SUB /gm).length, 2);
+  assert.equal(floor.canonical.match(/^ADD /gm).length, 2);
+
+  const zero = compileError('1 / 0');
+  assert.equal(zero.code, 'MALFORMED_EXPRESSION');
+  assert.deepEqual(zero.details, {operation: '/', reason: 'divide-by-zero'});
+
+  const dynamic = compileError('/calc R1 / 2');
+  assert.equal(dynamic.code, 'UNSUPPORTED_OPERATION');
+  assert.deepEqual(dynamic.details, {
+    operation: '/',
+    reason: 'non-negative-constants-required',
+  });
+
+  const tooLarge = compileError('100 / 2');
+  assert.equal(tooLarge.code, 'OUT_OF_RANGE');
+  assert.deepEqual(tooLarge.details, {
+    range: 'division-quotient',
+    value: 50,
+    min: 0,
+    max: 13,
+  });
 });
 
 test('32-bit literal boundaries preserve modulo-2^32 machine encoding', () => {
