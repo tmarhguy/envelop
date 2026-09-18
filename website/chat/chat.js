@@ -8,7 +8,7 @@ const SUPABASE_KEY = 'sb_publishable_nhog8psQAljHGK3RvIyp-Q_26yCYmsF';
 const DEVICE_ID = '00000000-0000-0000-0000-000000000001';
 const STORE_KEY = 'envelop.web.session.v1';
 const READ_KEY = 'envelop.web.read.v1';
-const ASSET_VERSION = '20260917-premium-4';
+const ASSET_VERSION = '20260918-dual-lut-1';
 const MODE_KEY = 'envelop.execution-mode.v1';
 const POLL_ACTIVE_MS = 3000;
 const POLL_BACKOFF_MS = [10000, 20000, 30000];
@@ -1197,7 +1197,7 @@ function addVirtualGreeting(body, preview = false) {
     compute: false,
     preview,
     via: 'virtual',
-    target: 'Virtual Tomato · deterministic greeting rule',
+    target: 'Virtual Tomato',
     replies: [`Hello, ${firstName}! I'm Virtual Tomato.`],
   };
   updateJobView(job);
@@ -1260,22 +1260,6 @@ function renderKnowledgeJob(job) {
   const answer = document.createElement('p');
   answer.className = 'knowledge-answer';
   answer.textContent = job.answer.answer;
-  const provenance = document.createElement('small');
-  provenance.className = 'job-technical';
-  const source = job.answer.provenance;
-  const sourceHref = safeKnowledgeHref(source && source.href);
-  if (sourceHref) {
-    const sourceLink = document.createElement('a');
-    sourceLink.href = sourceHref;
-    sourceLink.textContent = `${source.label} · reviewed local answer`;
-    if (new URL(sourceHref).origin !== location.origin) {
-      sourceLink.target = '_blank';
-      sourceLink.rel = 'noopener noreferrer';
-    }
-    provenance.append(sourceLink);
-  } else {
-    provenance.textContent = 'Reviewed local answer';
-  }
   const actions = document.createElement('div');
   actions.className = 'prompt-list';
   actions.setAttribute('aria-label', 'Answer actions');
@@ -1283,7 +1267,7 @@ function renderKnowledgeJob(job) {
     const element = renderAnswerAction(action);
     if (element) actions.append(element);
   }
-  card.append(query, answer, provenance, actions);
+  card.append(query, answer, actions);
   return card;
 }
 
@@ -1341,11 +1325,6 @@ function renderHelpJob(job) {
     groups.append(section);
   }
   card.append(groups);
-
-  const technical = document.createElement('small');
-  technical.className = 'job-technical help-technical';
-  technical.textContent = 'Envelop · examples';
-  card.append(technical);
   return card;
 }
 
@@ -1753,15 +1732,14 @@ function renderJob(job) {
  card.dataset.tone=view.tone||'working';
  if(job.via==='hardware' && ['queued','compiling','executing'].includes(view.phase)) scheduleHardwareWaitReveal(job);
  const appendReplies=()=>{
-  for(const reply of (job.replies||[])){const bubble=document.createElement('div');bubble.className='virtual-reply';const label=document.createElement('small');label.textContent=job.via==='local'?'Envelop':job.via==='hardware'?'Tomato':job.compute?'Virtual Tomato':'Virtual Tomato · reply';bubble.append(label);const t=document.createElement('div');t.className='virtual-text';t.textContent=reply;bubble.append(t);card.append(bubble);}
+  for(const reply of (job.replies||[])){const bubble=document.createElement('div');bubble.className='virtual-reply';const t=document.createElement('div');t.className='virtual-text';t.textContent=reply;bubble.append(t);card.append(bubble);}
  };
  if(view.resultFirst)appendReplies();
  if(view.chatty){
   const bubble=document.createElement('div');bubble.className='virtual-reply tomato-typing';
-  const label=document.createElement('small');label.textContent='Tomato';bubble.append(label);
   bubble.append(typingDots());
   card.append(bubble);
- }else{
+ }else if(view.title||view.text||view.guidance||view.pending){
  const status=document.createElement('div');status.className='job-status job-response';status.dataset.phase=view.phase;
  const liveSignature=JSON.stringify([view.phase,view.text,view.technical,job.replies||[],view.chatty||false]);
  const announce=job.liveSignature!==liveSignature;
@@ -1777,13 +1755,18 @@ function renderJob(job) {
   const human=document.createElement('span');human.className='job-human';
   human.textContent=view.text;statusCopy.append(human);
  }
- if(view.technical && view.phase==='succeeded'){
-  const technical=document.createElement('small');technical.className='job-technical';technical.textContent=view.technical;statusCopy.append(technical);
- }
  if(view.guidance){
   const guidance=document.createElement('span');guidance.className='job-guidance';guidance.textContent=view.guidance;statusCopy.append(guidance);
  }
  status.append(statusCopy);card.append(status);
+ }else if(job.replies&&job.replies.length){
+  // Announce the reply itself when there is no status chrome.
+  const liveSignature=JSON.stringify([view.phase,job.replies]);
+  if(job.liveSignature!==liveSignature){
+   job.liveSignature=liveSignature;
+   card.setAttribute('aria-live','polite');
+   card.setAttribute('aria-label',job.replies.join(' '));
+  }
  }
  if (!view.resultFirst) appendReplies();
  if(view.tone==='guidance') {

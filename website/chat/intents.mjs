@@ -13,7 +13,7 @@ export function isCalculationBearing(value) {
   if (/^\/(?:run|calc)\b/i.test(text)) return true;
   if (!/\d/.test(text)) return false;
   if (/[+*/%&|^~]|\s-\s/.test(text)) return true;
-  if (/\b(?:plus|minus|times|product|and|or|xor|nand|nor|xnor|not|maskadd|xorand|andadd|oradd|xoradd|andn|orn)\s*\(/i.test(text)) return true;
+  if (/\b(?:plus|minus|times|product|and|or|xor|nand|nor|xnor|not|maskadd|xorand|andadd|oradd|xoradd|andn|orn|xorbc|xorbo|xorbx|andbo|andbx|andbc|orbc|orbo|orbx)\s*\(/i.test(text)) return true;
   const numbers = text.match(/-?(?:0x[\da-f]+|0b[01]+|\d+)/gi) || [];
   return numbers.length >= 2
     && /\b(?:plus|minus|times|product|and|or|xor|nand|nor|xnor)\b/i.test(text);

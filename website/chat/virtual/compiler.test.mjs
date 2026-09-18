@@ -20,7 +20,7 @@ test('nl_fixtures: controlled language, understood, fail-closed errors', { skip:
   const fix = JSON.parse(readFileSync(found, 'utf8'));
   assert.equal(fix.version, 7);
   for (const c of fix.compute) {
-    const r = compile(c.input, {fuse: false});
+    const r = compile(c.input);
     assert.ok(r, `${c.input}: expected compute, got chat`);
     assert.equal(r.understood, c.understood, `${c.input}: understood`);
     assert.equal(r.canonical, c.canonical, `${c.input}: canonical`);
@@ -75,6 +75,11 @@ test('structured expression errors retain human-readable messages and safe detai
     recoveredOperators: ['and'],
   });
   assert.match(malformed.message, /two arguments or more/);
+
+  const unclosed = compileError('nand(nor(234, 55), 77) + xor(234, and(234, 777) + 1');
+  assert.equal(unclosed.code, 'MALFORMED_EXPRESSION');
+  assert.deepEqual(unclosed.details, { reason: 'unclosed-function', operation: 'xor' });
+  assert.match(unclosed.message, /Missing closing parenthesis for xor/);
 
   for (const operation of ['%']) {
     const unsupported = compileError(`/calc 7 ${operation} 3`);
@@ -184,12 +189,12 @@ test('complete semantic spans execute without confirmation', () => {
   assert.match(subtraction.canonical, /SUB R0,R0,R1\nRETURN R0$/);
 
   const nested = compile('i can teype gibveradklaeira adkn adihe adn adraioerh 345 + nand(2345, 3534, 235)');
-  assert.equal(nested.understood, '345 + ~(((2345 & 3534) & 235))');
-  assert.match(nested.canonical, /ADD R0,R0,R1\nRETURN R0$/);
+  assert.equal(nested.understood, '345 + nandand(235, 2345, 3534)');
+  assert.match(nested.canonical, /NANDAND R\d+,R\d+,R\d+,R\d+\nADD R0,R0,R\d+\nRETURN R0$/);
 
   const prefix = compile('What is or 56, 23, 12');
-  assert.equal(prefix.understood, '(56 | 23) | 12');
-  assert.match(prefix.canonical, /OR R0,R0,R1\nR1=12\nOR R0,R0,R1\nRETURN R0$/);
+  assert.equal(prefix.understood, 'orbo(12, 56, 23)');
+  assert.match(prefix.canonical, /ORBO R\d+,R\d+,R\d+,R\d+\nRETURN R\d+$/);
 });
 
 test('constant multiplication lowers to an ADD graph executed by Tomato', () => {

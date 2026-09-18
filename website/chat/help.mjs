@@ -31,7 +31,7 @@ export const HELP_GUIDE = freezeTree({
       options: [
         {label: 'XOR sum + triple AND', prompt: 'xorand(0xF0, 0xAA, 0x0F)'},
         {label: 'A + masked B and C', prompt: 'maskadd(0xFF, 7, 9)'},
-        {label: 'AND-not', prompt: 'andn(0xFF, 0x0F)'},
+        {label: 'Nested Dual-LUT', prompt: 'xor(5, and(7, 3))'},
       ],
     },
     {
@@ -39,7 +39,7 @@ export const HELP_GUIDE = freezeTree({
       options: [
         {label: 'Parentheses first', prompt: '(57 + 19) & 0x3F'},
         {label: 'Compare precedence', prompt: '57 + 19 & 0x3F'},
-        {label: 'Nested named form', prompt: 'xor(5, and(7, 3))'},
+        {label: 'AND-not', prompt: 'andn(0xFF, 0x0F)'},
       ],
     },
     {
@@ -124,6 +124,7 @@ export const SUGGESTION_CATALOG = freezeTree([
   {category: 'orn', label: 'ORN', prompt: 'orn(0xF0, 0x0F)'},
   {category: 'mixed-xnor', label: '+ XNOR', prompt: '23 + xnor(5, 3)'},
   {category: 'nested', label: 'Nested', prompt: 'xor(5, and(7, 3))'},
+  {category: 'nand-nor', label: 'NAND·NOR', prompt: 'nand(234, nor(234, 34))'},
   {category: 'negative', label: 'Negative', prompt: '-1 & 0xFF'},
   {category: 'overflow', label: 'Overflow', prompt: '4294967295 + 1'},
 ]);

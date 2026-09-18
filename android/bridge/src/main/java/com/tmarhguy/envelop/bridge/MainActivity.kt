@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -16,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -29,12 +31,51 @@ import org.json.JSONObject
 private const val PROVISIONING_ERROR =
     "Owner setup failed. Sign in with the recovery password, or finish first-time bootstrap."
 
+private val EnvelopLightColors = lightColorScheme(
+    primary = Color(0xFF5A715A),
+    onPrimary = Color(0xFFFFFEF8),
+    primaryContainer = Color(0xFFE9ECDF),
+    onPrimaryContainer = Color(0xFF242A28),
+    secondary = Color(0xFF244C39),
+    background = Color(0xFFF7F5EF),
+    onBackground = Color(0xFF242A28),
+    surface = Color(0xFFFBFAF6),
+    onSurface = Color(0xFF242A28),
+    surfaceVariant = Color(0xFFF4F1E8),
+    onSurfaceVariant = Color(0xFF646A65),
+    error = Color(0xFFAD342B),
+)
+
+private val EnvelopDarkColors = darkColorScheme(
+    primary = Color(0xFF8FA88F),
+    onPrimary = Color(0xFF121513),
+    primaryContainer = Color(0xFF2A322C),
+    onPrimaryContainer = Color(0xFFE8EBE4),
+    secondary = Color(0xFF8FA88F),
+    background = Color(0xFF121513),
+    onBackground = Color(0xFFE8EBE4),
+    surface = Color(0xFF1C211E),
+    onSurface = Color(0xFFE8EBE4),
+    surfaceVariant = Color(0xFF232A25),
+    onSurfaceVariant = Color(0xFF9AA39A),
+    error = Color(0xFFE07068),
+)
+
+@Composable
+private fun EnvelopTheme(content: @Composable () -> Unit) {
+    val dark = isSystemInDarkTheme()
+    MaterialTheme(
+        colorScheme = if (dark) EnvelopDarkColors else EnvelopLightColors,
+        content = content,
+    )
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val api = CloudApi(applicationContext)
         setContent {
-            MaterialTheme {
+            EnvelopTheme {
                 EnvelopApp(api)
             }
         }
