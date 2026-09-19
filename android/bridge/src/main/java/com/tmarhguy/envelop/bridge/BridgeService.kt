@@ -85,6 +85,7 @@ override fun onBind(intent: Intent?): IBinder? = null
         val announced = mutableSetOf<Int>()
         val computeWaiters = ConcurrentHashMap<Long, CompletableDeferred<DeviceFrame>>()
         var nextToken = 1L
+        var claimedJobId: String? = null
         BridgeState.update("Scanning for Tomato…", connected = true)
         link.start(); link.ready.await()
         BridgeState.update("Verifying Tomato…", connected = true)
@@ -182,42 +183,51 @@ override fun onBind(intent: Intent?): IBinder? = null
                             "p_instance" to connectionInstance.toString()))
                         for (index in 0 until minOf(MAX_COMPUTE_JOBS_PER_CYCLE, jobs.length())) {
                             val job = jobs.getJSONObject(index)
-                            val conversation = UUID.fromString(job.getString("conversation_id"))
-                            val route = routes.routeFor(conversation) ?: continue
-                            if (!announce(link, route, job.getString("requester"), announced)) continue
-                            val bytes = parseHex(job.getString("job_hex"))
-                            if (bytes == null || bytes.isEmpty() || bytes.size > DeviceFrame.MAX_PAYLOAD - 4) {
-                                api.rpc("bridge_finish_compute_job", "p_job" to job.getString("job_id"),
-                                    "p_device" to CloudApi.TOMATO, "p_instance" to connectionInstance.toString(),
-                                    "p_result_text" to null, "p_error" to "malformed job hex")
-                                continue
-                            }
-                            if (nextToken > 0xffffffffL) continue
-                            val token = nextToken++
-                            routes.pin(route)
+                            val jobId = job.getString("job_id")
                             try {
-                                api.rpc("bridge_claim_compute_job", "p_job" to job.getString("job_id"),
-                                    "p_device" to CloudApi.TOMATO, "p_instance" to connectionInstance.toString())
-                                val waiter = CompletableDeferred<DeviceFrame>(); computeWaiters[token] = waiter
-                                if (!link.send(DeviceFrame(DeviceFrameType.COMPUTE_JOB, route, DeviceFrame.token(token) + bytes).encode())) {
-                                    computeWaiters.remove(token); continue
+                                val conversation = UUID.fromString(job.getString("conversation_id"))
+                                val route = routes.routeFor(conversation) ?: continue
+                                if (!announce(link, route, job.getString("requester"), announced)) continue
+                                val bytes = parseJobHex(job.getString("job_hex"))
+                                if (bytes == null || bytes.isEmpty() || bytes.size > DeviceFrame.MAX_PAYLOAD - 4) {
+                                    failJob(jobId, connectionInstance, "malformed job hex")
+                                    continue
                                 }
-                                val result = withTimeoutOrNull(8_000) { waiter.await() }
-                                computeWaiters.remove(token)
-                                if (result != null) {
-                                    val value = DeviceFrame.readToken(result.payload, 5)
-                                    val text = if (result.payload[4].toInt() == 0) "$value / 0x%08X".format(value)
-                                        else "Tomato rejected the job (status ${result.payload[4].toInt() and 0xff})."
-                                    api.rpc("bridge_finish_compute_job", "p_job" to job.getString("job_id"),
-                                        "p_device" to CloudApi.TOMATO, "p_instance" to connectionInstance.toString(),
-                                        "p_result_text" to text, "p_error" to null)
+                                if (nextToken > 0xffffffffL) continue
+                                val token = nextToken++
+                                routes.pin(route)
+                                try {
+                                    api.rpc("bridge_claim_compute_job", "p_job" to jobId,
+                                        "p_device" to CloudApi.TOMATO, "p_instance" to connectionInstance.toString())
+                                    claimedJobId = jobId
+                                    val waiter = CompletableDeferred<DeviceFrame>(); computeWaiters[token] = waiter
+                                    if (!link.send(DeviceFrame(DeviceFrameType.COMPUTE_JOB, route, DeviceFrame.token(token) + bytes).encode())) {
+                                        computeWaiters.remove(token)
+                                        failJob(jobId, connectionInstance, "Could not write the job to Tomato")
+                                        claimedJobId = null
+                                        continue
+                                    }
+                                    val result = withTimeoutOrNull(8_000) { waiter.await() }
+                                    computeWaiters.remove(token)
+                                    if (result != null) {
+                                        val value = DeviceFrame.readToken(result.payload, 5)
+                                        val text = if (result.payload[4].toInt() == 0) "$value / 0x%08X".format(value)
+                                            else "Tomato rejected the job (status ${result.payload[4].toInt() and 0xff})."
+                                        finishJob(jobId, connectionInstance, text, null)
+                                    } else {
+                                        failJob(jobId, connectionInstance, "Tomato did not answer in time")
+                                    }
+                                    claimedJobId = null
+                                } finally {
+                                    computeWaiters.remove(token)
+                                    routes.release(route)
                                 }
                             } catch (error: Exception) {
                                 if (error is CancellationException) throw error
-                                continue
-                            } finally {
-                                computeWaiters.remove(token)
-                                routes.release(route)
+                                claimedJobId?.let { id ->
+                                    failJob(id, connectionInstance, "Bridge dropped the job")
+                                    claimedJobId = null
+                                }
                             }
                         }
                         if (routes.resetReady) {
@@ -229,6 +239,11 @@ override fun onBind(intent: Intent?): IBinder? = null
                         BridgeState.update("Connected and bridging", connected = true)
                     } catch (error: Throwable) {
                         if (error is CancellationException) throw error
+                        if (isJobUnavailable(error)) continue
+                        claimedJobId?.let { id ->
+                            failJob(id, connectionInstance, "Bridge disconnected")
+                            claimedJobId = null
+                        }
                         link.send(DeviceFrame(DeviceFrameType.STATUS, payload = byteArrayOf(1)).encode())
                         release(connectionInstance)
                         BridgeState.update("Cloud bridge unavailable", connected = true,
@@ -244,6 +259,9 @@ override fun onBind(intent: Intent?): IBinder? = null
             throw IllegalStateException("Tomato did not return the exact ENVELOP/1 identity.")
         } finally {
             receiver.cancel(); computeWaiters.values.forEach { it.cancel() }
+            claimedJobId?.let { id ->
+                withContext(NonCancellable) { failJob(id, connectionInstance, "Bridge disconnected") }
+            }
             deliveries.clear(); deliveryRoutes.clear(); deliveryAcks.clear()
             outboundNonces.clear(); announced.clear()
         }
@@ -260,10 +278,28 @@ override fun onBind(intent: Intent?): IBinder? = null
             if (it) announced += route
         }
     }
-    private fun parseHex(text: String): ByteArray? {
-        val parts = text.trim().split(Regex("\\s+")).filter(String::isNotEmpty)
-        if (parts.any { it.length != 2 }) return null
-        return runCatching { parts.map { it.toInt(16).toByte() }.toByteArray() }.getOrNull()
+    private suspend fun finishJob(jobId: String, instance: UUID, resultText: String?, error: String?) {
+        api.rpc(
+            "bridge_finish_compute_job",
+            "p_job" to jobId,
+            "p_device" to CloudApi.TOMATO,
+            "p_instance" to instance.toString(),
+            "p_result_text" to resultText,
+            "p_error" to error,
+        )
+    }
+    private suspend fun failJob(jobId: String, instance: UUID, message: String) {
+        runCatching {
+            runCatching {
+                api.rpc(
+                    "bridge_claim_compute_job",
+                    "p_job" to jobId,
+                    "p_device" to CloudApi.TOMATO,
+                    "p_instance" to instance.toString(),
+                )
+            }
+            finishJob(jobId, instance, null, message)
+        }
     }
     private suspend fun release(target: UUID) {
         runCatching { api.rpc("release_bridge", "p_device" to CloudApi.TOMATO, "p_instance" to target.toString()) }

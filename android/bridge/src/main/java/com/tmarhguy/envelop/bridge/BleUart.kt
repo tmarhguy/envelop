@@ -8,6 +8,8 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelUuid
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
@@ -19,10 +21,16 @@ class BleUart(private val context: Context) {
     val ready = CompletableDeferred<Unit>()
     val disconnected = CompletableDeferred<Unit>()
     private val adapter = context.getSystemService(BluetoothManager::class.java).adapter
+    private val handler = Handler(Looper.getMainLooper())
     private var gatt: BluetoothGatt? = null
+    private var device: BluetoothDevice? = null
     private var rx: BluetoothGattCharacteristic? = null
     private val writes = ArrayDeque<ByteArray>()
     private var writing = false
+    private var writeGeneration = 0
+    private var connectAttempts = 0
+    private var discoverAttempts = 0
+    private var closed = false
 
     fun start() {
         require(adapter?.isEnabled == true) { "Bluetooth is off" }
@@ -31,38 +39,69 @@ class BleUart(private val context: Context) {
             ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(), scan)
     }
     fun close() {
+        closed = true
+        handler.removeCallbacksAndMessages(null)
         runCatching { adapter?.bluetoothLeScanner?.stopScan(scan) }
-        gatt?.disconnect(); gatt?.close(); gatt = null
+        val current = gatt
+        gatt = null
+        rx = null
+        current?.disconnect()
+        handler.post { runCatching { current?.close() } }
         if (!disconnected.isCompleted) disconnected.complete(Unit)
     }
     @Synchronized fun send(bytes: ByteArray): Boolean {
         val chunks = bytes.asIterable().chunked(20).map { it.toByteArray() }
         if (writes.size + chunks.size > 256) return false
-        writes.addAll(chunks); drain()
+        writes.addAll(chunks)
+        handler.post { synchronized(this) { drain() } }
         return true
     }
     @Synchronized private fun drain() {
-        if (writing) return
+        if (writing || closed) return
         val characteristic = rx ?: return
         val chunk = writes.removeFirstOrNull() ?: return
-        writing = true
         val current = gatt ?: return
-        if (Build.VERSION.SDK_INT >= 33) {
-            if (current.writeCharacteristic(characteristic, chunk, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE) != BluetoothStatusCodes.SUCCESS) writing = false
+        writing = true
+        val generation = ++writeGeneration
+        val ok = if (Build.VERSION.SDK_INT >= 33) {
+            current.writeCharacteristic(characteristic, chunk, BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE) ==
+                BluetoothStatusCodes.SUCCESS
         } else {
             characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
             characteristic.value = chunk
-            if (!current.writeCharacteristic(characteristic)) writing = false
+            current.writeCharacteristic(characteristic)
         }
-        if (!writing) drain()
+        if (!ok) {
+            writing = false
+            drain()
+            return
+        }
+        // nRF8001 has tiny without-response buffers; some Transsion stacks never
+        // call onCharacteristicWrite for NO_RESPONSE, so pace the next chunk.
+        handler.postDelayed({
+            synchronized(this) {
+                if (writing && writeGeneration == generation) {
+                    writing = false
+                    drain()
+                }
+            }
+        }, 30)
     }
+    private fun connect(target: BluetoothDevice) {
+        if (closed) return
+        device = target
+        gatt = if (Build.VERSION.SDK_INT >= 23) target.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
+            else target.connectGatt(context, false, callback)
+    }
+    private fun retryableConnectStatus(status: Int) =
+        status == 133 || status == 62 || status == 8 || status == 19
     private val scan = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             val name = result.scanRecord?.deviceName ?: result.device.name ?: ""
             if (name.isNotEmpty() && !name.startsWith("Envelop", true) && !name.startsWith("Tomato", true)) return
             adapter.bluetoothLeScanner.stopScan(this)
-            gatt = if (Build.VERSION.SDK_INT >= 23) result.device.connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
-                else result.device.connectGatt(context, false, callback)
+            connectAttempts = 0
+            connect(result.device)
         }
         override fun onScanFailed(errorCode: Int) {
             if (!ready.isCompleted) ready.completeExceptionally(IllegalStateException("BLE scan failed ($errorCode)"))
@@ -70,9 +109,31 @@ class BleUart(private val context: Context) {
     }
     private val callback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+            if (closed) return
             if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) {
-                gatt.discoverServices()
+                connectAttempts = 0
+                discoverAttempts = 0
+                // Infinix/Transsion stacks return GATT 133 if discoverServices runs
+                // on the connect callback. Give the nRF8001 a moment first.
+                gatt.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+                handler.postDelayed({
+                    if (closed || this@BleUart.gatt !== gatt || ready.isCompleted) return@postDelayed
+                    gatt.discoverServices()
+                }, 600)
             } else if (status != BluetoothGatt.GATT_SUCCESS || newState == BluetoothProfile.STATE_DISCONNECTED) {
+                val retry = !ready.isCompleted && !closed && connectAttempts < 4 && retryableConnectStatus(status)
+                if (retry) {
+                    connectAttempts++
+                    val target = device
+                    val delayMs = 400L * connectAttempts
+                    handler.postDelayed({
+                        if (closed || target == null || ready.isCompleted) return@postDelayed
+                        runCatching { gatt.close() }
+                        if (this@BleUart.gatt === gatt) this@BleUart.gatt = null
+                        connect(target)
+                    }, delayMs)
+                    return
+                }
                 if (!ready.isCompleted) ready.completeExceptionally(
                     IllegalStateException(if (status == BluetoothGatt.GATT_SUCCESS) "Tomato disconnected" else "BLE connection failed ($status)")
                 )
@@ -80,6 +141,18 @@ class BleUart(private val context: Context) {
             }
         }
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            if (closed || this@BleUart.gatt !== gatt) return
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                if (!ready.isCompleted && discoverAttempts < 3) {
+                    discoverAttempts++
+                    handler.postDelayed({
+                        if (!closed && this@BleUart.gatt === gatt && !ready.isCompleted) gatt.discoverServices()
+                    }, 400)
+                } else if (!ready.isCompleted) {
+                    ready.completeExceptionally(IllegalStateException("Nordic UART service unavailable"))
+                }
+                return
+            }
             val service = gatt.getService(SERVICE)
             val rxCharacteristic = service?.getCharacteristic(RX)
             val tx = service?.getCharacteristic(TX)
@@ -88,7 +161,7 @@ class BleUart(private val context: Context) {
             val canNotify = ((tx?.properties ?: 0) and
                 BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0
             val descriptor = tx?.getDescriptor(CCCD)
-            if (status != BluetoothGatt.GATT_SUCCESS || rxCharacteristic == null || tx == null ||
+            if (rxCharacteristic == null || tx == null ||
                 !canWriteWithoutResponse || !canNotify || descriptor == null) {
                 ready.completeExceptionally(IllegalStateException("Nordic UART service unavailable")); return
             }
@@ -110,7 +183,11 @@ class BleUart(private val context: Context) {
             incoming.trySend(value.copyOf())
         }
         override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
-            synchronized(this@BleUart) { writing = false; drain() }
+            synchronized(this@BleUart) {
+                writing = false
+                writeGeneration++
+                drain()
+            }
         }
     }
     companion object {

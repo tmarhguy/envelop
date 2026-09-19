@@ -479,6 +479,19 @@ begin
   insert into public.device_bridges (device_id, bridge_user_id, bridge_instance_id, expires_at, last_heartbeat)
   values (p_device, uid, p_instance, now() + interval '30 seconds', now())
   returning * into row;
+
+  -- A new lease instance cannot finish work claimed by a dead radio session.
+  -- Fail those jobs instead of leaving them claimed forever (the web waiter
+  -- otherwise sits on "job unavailable" / unknown). Same-instance heartbeats
+  -- do not take this path, so an in-flight job on a live link is untouched.
+  update public.compute_jobs
+  set status = 'failed',
+      result_text = 'Bridge reconnected before the hardware result arrived.',
+      updated_at = now()
+  where device_id = p_device
+    and status = 'claimed'
+    and bridge_instance_id is distinct from p_instance;
+
   return row;
 end;
 $$;
@@ -1017,11 +1030,14 @@ begin
     update public.compute_jobs
     set status = 'failed',
         result_text = left(p_error, 256),
+        bridge_instance_id = p_instance,
         updated_at = now()
     where id = p_job
       and device_id = p_device
-      and status = 'claimed'
-      and bridge_instance_id = p_instance
+      and (
+        status = 'queued'
+        or (status = 'claimed' and bridge_instance_id = p_instance)
+      )
     returning * into result;
   else
     if p_result_text is null

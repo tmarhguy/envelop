@@ -200,6 +200,40 @@ await test('compute jobs remain lease-scoped and durable', async () => {
   await as('owner', () => rpc('release_bridge', [ids.tomato, instance]));
 });
 
+await test('bridge can fail a queued job without a prior claim', async () => {
+  const hex = '01 01 05 00 00 00 2A 30 00';
+  const job = (await as('alice', () =>
+    rpc('enqueue_compute_job', [ids.tomato, tomatoConversation, hex])))[0];
+  await as('owner', () => rpc('claim_bridge', [ids.tomato, instance]));
+  const done = (await as('owner', () =>
+    rpc('bridge_finish_compute_job', [
+      job.id,
+      ids.tomato,
+      instance,
+      null,
+      'malformed job hex',
+    ])))[0];
+  assert.equal(done.status, 'failed');
+  assert.equal(done.result_text, 'malformed job hex');
+  await as('owner', () => rpc('release_bridge', [ids.tomato, instance]));
+});
+
+await test('a new bridge instance fails jobs left claimed by a dead lease', async () => {
+  const hex = '01 01 05 00 00 00 2A 30 00';
+  const job = (await as('alice', () =>
+    rpc('enqueue_compute_job', [ids.tomato, tomatoConversation, hex])))[0];
+  const dead = '50000000-0000-0000-0000-000000000015';
+  await as('owner', () => rpc('claim_bridge', [ids.tomato, dead]));
+  await as('owner', () =>
+    rpc('bridge_claim_compute_job', [job.id, ids.tomato, dead]));
+  await as('owner', () => rpc('release_bridge', [ids.tomato, dead]));
+  await as('owner', () => rpc('claim_bridge', [ids.tomato, instance]));
+  const final = (await as('alice', () => rpc('my_compute_job', [job.id])))[0];
+  assert.equal(final.status, 'failed');
+  assert.match(final.result_text, /reconnected/);
+  await as('owner', () => rpc('release_bridge', [ids.tomato, instance]));
+});
+
 await test('owner manages verification and trusted bridge access', async () => {
   await as('owner', () => rpc('admin_set_verified', [ids.mac, true]));
   await as('owner', () => rpc('owner_set_trusted_bridge', [ids.mac, true]));
