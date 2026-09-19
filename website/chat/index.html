@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+<script>(function(){try{var k="envelop-theme",s=localStorage.getItem(k),d=window.matchMedia("(prefers-color-scheme: dark)").matches,t=(s==="light"||s==="dark")?s:(d?"dark":"light");document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Envelop web chat for people and Tomato, with queued hardware delivery and an explicitly labeled Virtual Tomato preview.">
@@ -20,9 +21,10 @@
 <meta name="twitter:image" content="https://tmarhguy.github.io/envelop/media/envelop-social-card.webp">
 <title>Chat — Envelop</title>
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../style.css?v=20260916">
-<link rel="stylesheet" href="chat.css?v=20260917-premium-4">
-<script src="chat.js?v=20260917-premium-4" defer></script>
+<link rel="stylesheet" href="../style.css?v=20260918-theme-10">
+<link rel="stylesheet" href="chat.css?v=20260918-theme-10">
+<script src="chat.js?v=20260918-illusion" defer></script>
+<script src="../theme.js?v=20260918-theme" defer></script>
 </head>
 <body class="chat-page">
 <a class="skip" href="#chat">Skip to chat</a>
@@ -38,7 +40,7 @@
     <a href="../status.html">Status</a>
     <a href="../privacy.html">Privacy</a>
   </nav>
-  <details class="site-menu">
+  <div class="header-tools"><button type="button" class="theme-toggle" data-theme-toggle aria-label="Switch appearance" title="Switch appearance"><span class="theme-icon-light" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span><span class="theme-icon-dark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 14.5A8.5 8.5 0 1 1 9.5 3 7 7 0 0 0 21 14.5z"/></svg></span></button><details class="site-menu">
     <summary aria-label="Open menu"><span></span><span></span><span></span></summary>
     <nav aria-label="All pages">
       <a href="./" aria-current="page">Chat</a>
@@ -52,7 +54,7 @@
       <a href="../privacy.html">Privacy</a>
       <a href="https://tomato.tmarhguy.com/">Explore Tomato</a>
     </nav>
-  </details>
+  </details></div>
 </header>
 
 <main class="wrap chat-main" id="chat">
@@ -72,7 +74,7 @@
         <summary>How it works</summary>
         <div>
           <p>Enter a name and you're visible while you're here. Text whoever is online, and send Tomato a hello whenever its verified bridge is up. If physical Tomato is offline, notes queue for its return while supported compute runs immediately in Virtual Tomato. You can also preview any draft explicitly in Virtual Tomato from the chat box; it stays labeled virtual and is never sent to hardware. “Leave Envelop” requests deletion of your profile and related chats.</p>
-          <p>Try compute: <code>What is (57 + 19) AND 0x3F?</code> → Tomato replies <code>12 / 0x0000000C</code>. <a href="../#compute">How compute works</a>. An online authenticated lease uses a durable physical-hardware job; otherwise the result is clearly labeled Virtual Tomato. Ambiguous hardware jobs are never replayed virtually.</p>
+          <p>Try three ALU inputs in one Dual-LUT form: <code>xorand(0xF0, 0xAA, 0x0F)</code> → <code>85 / 0x00000055</code>. <a href="../#compute">How compute works</a>. An online authenticated lease uses a durable physical-hardware job; otherwise the result is clearly labeled Virtual Tomato. Ambiguous hardware jobs are never replayed virtually.</p>
         </div>
       </details>
     </div>
@@ -129,7 +131,7 @@
       <p>Envelop runs without AI. It was designed as deterministic software around Tomato’s open-compute philosophy: reviewed rules select source-linked answers, while the compiler exposes the program, bytecode, target, and result provenance.</p>
     </div>
     <div class="comparison-diagram">
-      <div class="comparison-input"><span>Same input</span><strong>What is (57 + 19) AND 0x3F?</strong></div>
+      <div class="comparison-input"><span>Same three-input Dual-LUT form</span><strong>xorand(0xF0, 0xAA, 0x0F)</strong></div>
       <div class="comparison-route-marker" aria-hidden="true">Two architectures · two response shapes</div>
       <div class="response-compare" aria-label="The same input entering a generative response space and Envelop deterministic route">
         <article class="response-possibilities">
@@ -146,7 +148,7 @@
             <li>Input text</li>
             <li>Reviewed rule</li>
             <li>Compiled Tomato program</li>
-            <li><span>Labeled result</span><strong>12 · 0x0000000C</strong></li>
+            <li><span>Labeled result</span><strong>85 · 0x00000055</strong></li>
           </ol>
           <p><strong>One inspectable path</strong><span>The behavior catalog, router, and help stay within a tested 96 KiB source budget, with 0 bytes of model weights.</span></p>
         </article>

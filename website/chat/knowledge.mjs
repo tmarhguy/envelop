@@ -223,14 +223,14 @@ const baseCards = {
     actions: [compute('Try unsigned wrap', '4294967295 + 1'), compute('Try subtraction wrap', '0 - 1'), ask('Negative values', 'How do negative numbers work?')],
   },
   operators: {
-    answer: 'The shared native compute ABI supports SET, ADD, SUB, AND, OR, XOR, MASKADD, XORAND, ANDADD, ORADD, XORADD, ANDN, ORN, private LOAD/STORE, and final RETURN. Higher-level NOT, NAND, NOR, and XNOR lower into those primitives.',
+    answer: 'The shared native compute ABI supports SET, ADD, SUB, AND, OR, XOR, MASKADD, XORAND, ANDADD, ORADD, XORADD, ANDN, ORN, nested Boolean Dual-LUT ops (XORBC, XORBO, XORBX, ANDBO, ANDBX, ANDBC, ORBC, ORBO, ORBX), private LOAD/STORE, and final RETURN. Higher-level NOT, NAND, NOR, and XNOR lower into those primitives. Nested forms such as xor(A, and(B, C)) fuse to one Dual-LUT instruction.',
     provenance: common.compute,
     actions: [ask('Masks and composed work', 'What are masks and composed operations?'), ask('Why no modulo?', 'Does Envelop support modulo percent?'), ask('Raw program syntax', 'Which raw instructions can Envelop run?')],
   },
   masks: {
-    answer: 'Masks select bits with AND. Envelop also exposes Dual-LUT-shaped forms: MASKADD(a,b,c)=a+(b&c), XORAND=(a^b^c)+(a&b&c), ANDADD=(a&b)+c, ORADD=(a|b)+c, XORADD=(a^b)+c, ANDN=a&~b, and ORN=a|~b. Results wrap to 32 bits.',
+    answer: 'Masks select bits with AND. Envelop exposes Dual-LUT-shaped forms: MASKADD(a,b,c)=a+(b&c), XORAND=(a^b^c)+(a&b&c), ANDADD=(a&b)+c, ORADD=(a|b)+c, XORADD=(a^b)+c, ANDN=a&~b, ORN=a|~b, and nested Boolean nests such as XORBC=A^(B&C) that collapse outer(A, inner(B, C)) into one cycle. Results wrap to 32 bits.',
     provenance: common.compute,
-    actions: [compute('Try MASKADD', 'maskadd(8, 13, 5)'), compute('Try XORAND', 'xorand(0xF0, 0xAA, 0x0F)'), ask('Why Dual-LUT?', 'What makes Tomato’s ALU unusual?')],
+    actions: [compute('Try MASKADD', 'maskadd(8, 13, 5)'), compute('Try nested XORBC', 'xor(5, and(7, 3))'), ask('Why Dual-LUT?', 'What makes Tomato’s ALU unusual?')],
   },
   multiplication: {
     answer: 'The browser compiler accepts multiplication only when at least one factor is a non-negative constant, then lowers it into ADD operations that Tomato executes. Arbitrary register-by-register multiplication is not an Envelop bytecode operation.',
@@ -253,9 +253,9 @@ const baseCards = {
     actions: [ask('Raw instructions', 'Which raw instructions can Envelop run?'), compute('Run a bounded program', '/run; R0=42; RETURN R0'), link('Read the boundary', LINKS.tomatoCompute)],
   },
   rawInstructions: {
-    answer: 'Raw /run accepts SET, ADD, SUB, AND, OR, XOR, MASKADD, XORAND, ANDADD, ORADD, XORADD, ANDN, ORN, LOAD, STORE, and final RETURN, plus reviewed aliases such as LI, LD, ST, MOV, and CLR.',
+    answer: 'Raw /run accepts SET, ADD, SUB, AND, OR, XOR, MASKADD, XORAND, ANDADD, ORADD, XORADD, ANDN, ORN, XORBC, XORBO, XORBX, ANDBO, ANDBX, ANDBC, ORBC, ORBO, ORBX, LOAD, STORE, and final RETURN, plus reviewed aliases such as LI, LD, ST, MOV, and CLR.',
     provenance: common.compute,
-    actions: [compute('Run ADD', '/run; R0=23; R1=19; ADD R0,R0,R1; RETURN R0'), compute('Run memory', '/run; R0=42; STORE [7],R0; LOAD R1,[7]; RETURN R1'), ask('Sandbox limits', 'What are the compute limits?')],
+    actions: [compute('Run ADD', '/run; R0=23; R1=19; ADD R0,R0,R1; RETURN R0'), compute('Run nested Dual-LUT', 'xor(5, and(7, 3))'), ask('Sandbox limits', 'What are the compute limits?')],
   },
   compiler: {
     answer: '“Compiler” can mean three different things here: Envelop’s deterministic language-to-bytecode compiler, Tomato’s assembler, or the Tomato OS Compiler app that searches 65,536 LUT pairs for one fixed input/output example.',
@@ -328,12 +328,12 @@ const baseCards = {
     actions: [link('Open Tomato source', LINKS.tomatoSource), link('Read architecture', LINKS.tomatoArchitecture), ask('Verification evidence', 'How is Tomato verified?')],
   },
   assistantIdentity: {
-    answer: 'This local voice is Envelop’s deterministic response program. Tomato is the 32-bit computer that receives messages and executes the labeled jobs.',
+    answer: 'This is Envelop’s deterministic response program — local cards and bounded compute routing, not a chatbot persona. Tomato is the 32-bit computer that receives messages and executes labeled jobs.',
     provenance: source('Envelop source', LINKS.envelopSource),
     actions: [ask('What is Tomato?', 'What is Tomato?'), ask('Why no AI?', 'Does Envelop use AI?'), link('Inspect Envelop', LINKS.envelopSource)],
   },
   memoryBoundary: {
-    answer: 'I only use the profile and conversation state Envelop actually stores. I do not infer private facts, and this deterministic answer layer has no learned memory or hidden personal model.',
+    answer: 'Envelop only uses the profile and conversation state it actually stores. This layer does not infer private facts and has no learned memory or hidden personal model.',
     provenance: common.privacy,
     actions: [ask('What data is stored?', 'What data does Envelop store?'), link('Read privacy details', LINKS.envelopPrivacy), ask('Is this AI?', 'Does Envelop use AI?')],
   },
@@ -348,7 +348,7 @@ const baseCards = {
     actions: [ask('Show how it works', 'How does this deterministic chat work?'), link('Inspect the source', LINKS.envelopSource), ask('See verification', 'How is Tomato verified?')],
   },
   frustration: {
-    answer: 'Let’s make this easier. Start with an example, or ask about a specific part of Tomato. I can help with calculations and the topics listed in Help.',
+    answer: 'Start with an example, or ask about a specific part of Tomato. Help lists calculations and documented topics.',
     provenance: source('Deterministic local response', LINKS.envelopSource),
     actions: [ask('What can I ask?', 'What can you do?'), ask('Browse programs', 'What programs are on Tomato?'), compute('Try a known job', '23 + 19')],
   },
@@ -358,12 +358,12 @@ const baseCards = {
     actions: [link('Explore Tomato', LINKS.tomato), link('Open Envelop home', LINKS.envelop)],
   },
   unknownPerson: {
-    answer: 'I only have reviewed local identity answers for Tyrone Marhguy and the projects documented here. I will not invent a biography for an unknown person.',
+    answer: 'I only know Tyrone Marhguy and the projects documented here. I will not invent a biography for someone else.',
     provenance: source('Deterministic scope', LINKS.envelopSource),
     actions: [ask('Who is Tyrone?', 'Who is Tyrone Marhguy?'), ask('What is Tomato?', 'What is Tomato?'), link('About Tyrone', LINKS.tyroneAbout)],
   },
   clarification: {
-    answer: 'I do not have a source-backed local answer for that yet. Ask about Tyrone, Tomato, Envelop, Tomato OS programs, architecture, compute, verification, privacy, or the physical and virtual routes.',
+    answer: 'I do not have a source-backed answer for that yet. Ask about Tyrone, Tomato, Envelop, Tomato OS programs, architecture, compute, verification, privacy, or the physical and virtual routes.',
     provenance: source('Deterministic scope', LINKS.envelopSource),
     actions: [ask('What can I ask?', 'What can you do?'), ask('Browse programs', 'What programs are on Tomato?'), ask('Who is Tyrone?', 'Who is Tyrone Marhguy?')],
   },
@@ -434,7 +434,7 @@ export const MATCHERS = freezeTree([
   ['negative', /\b(?:negative|signed|two.?s complement)\b.*\b(?:number|integer|value|work|represent)\b|\bhow do negative numbers\b/i],
   ['overflow', /\b(?:overflows?|overflowed|wrapping|wraps?|modulo 2|2\^?32)\b/i],
   ['numbers', /\b(?:represent(?:ed|ation)?|formats?|decimal|hexadecimal|binary|integer range)\b.*\b(?:numbers?|integers?|literals?|values?)\b|\bhow are (?:numbers|integers) represented\b/i],
-  ['masks', /\b(?:masks?|maskadd|xorand|andadd|oradd|xoradd|andn|orn|composed operations?)\b/i],
+  ['masks', /\b(?:masks?|maskadd|xorand|andadd|oradd|xoradd|andn|orn|xorbc|xorbo|xorbx|andbo|andbx|andbc|orbc|orbo|orbx|composed operations?|nested (?:boolean|bool|forms?)?)\b/i],
   ['modulo', /\b(?:modulo|remainder|percent operator|support %|% supported)\b|%/i],
   ['multiplication', /\b(?:multiplication|multiply|support \*)\b/i],
   ['division', /\b(?:division|divide|support \/)\b/i],

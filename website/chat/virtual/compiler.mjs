@@ -1,4 +1,5 @@
 // Bounded ENVELOP compute ABI v1. Compiles; CPU/OS executes the result.
+import {BOOL3_OPS, fuseBoolNest, fuseNotNest, NEG_BIN} from './lut-fuse.mjs';
 export const hex = bytes => Array.from(bytes,b=>b.toString(16).padStart(2,'0').toUpperCase()).join(' ');
 export class CompileError extends Error {
  constructor(code,message,details={}){
@@ -29,8 +30,8 @@ const OF_ALIAS={plus:'plus',minus:'minus',and:'and',or:'or',xor:'xor',nand:'nand
 const OF_HEAD=new RegExp(String.raw`\b(?:the\s+)?(?:bitwise\s+)?(${OF_NAMES})\s+(?:of|between)\s+`,'gi');
 const OF_TERM=/^(?:plus|minus|or|xor|nand|nor|xnor|sum|difference|product|times)\b/i;
 const OP_VOCAB=['plus','minus','and','or','xor','nand','nor','xnor','not','sum','add','product','times'];
-const FN_NAMES='plus|minus|and|or|xor|nand|nor|xnor|not|product|times|andn|orn|maskadd|xorand|andadd|oradd|xoradd';
-const WORD_OPERATION=new RegExp(String.raw`\b(?:${OF_NAMES}|andn|orn|maskadd|xorand|andadd|oradd|xoradd)\b`,'i');
+const FN_NAMES='plus|minus|and|or|xor|nand|nor|xnor|not|product|times|andn|orn|maskadd|xorand|andadd|oradd|xoradd|xorbc|xorbo|xorbx|andbo|andbx|andbc|orbc|orbo|orbx';
+const WORD_OPERATION=new RegExp(String.raw`\b(?:${OF_NAMES}|andn|orn|maskadd|xorand|andadd|oradd|xoradd|xorbc|xorbo|xorbx|andbo|andbx|andbc|orbc|orbo|orbx)\b`,'i');
 const MEANING_START=new RegExp(String.raw`\b(?:${OF_NAMES})\s+(?:of|between)\b|\b(?:${FN_NAMES})\s*(?=\()|-?(?:0x[\da-f]+|0b[01]+|\d+)|\bR[0-9]+\b|[~(]`,'gi');
 const MEANING_END=/-?(?:0x[\da-f]+|0b[01]+|\d+)|\bR[0-9]+\b|\)/gi;
 function usefulEnvelope(source){
@@ -162,9 +163,8 @@ export function compile(source, {fuse = true} = {}) {
   const prepared=usefulEnvelope(stripShells(text.replace(/^\/calc\s+/i,'')));
   let expr=expandPrefixCall(expandOf(prepared));
    const FN={plus:'+',minus:'-',and:'&',or:'|',xor:'^',nand:'&',nor:'|',xnor:'^',product:'*',times:'*'};
-   const NEG=new Set(['nand','nor','xnor']);
-   const head=/\b(plus|minus|and|or|xor|nand|nor|xnor|not|product|times|andn|orn|maskadd|xorand|andadd|oradd|xoradd)\s*\(/i;
-   const tailOp=/(plus|minus|and|or|xor|nand|nor|xnor|not|product|times|andn|orn|maskadd|xorand|andadd|oradd|xoradd|[+*/\-&|^~(,])\s*$/i;
+   const head=/\b(plus|minus|and|or|xor|nand|nor|xnor|not|product|times|andn|orn|maskadd|xorand|andadd|oradd|xoradd|xorbc|xorbo|xorbx|andbo|andbx|andbc|orbc|orbo|orbx)\s*\(/i;
+   const tailOp=/(plus|minus|and|or|xor|nand|nor|xnor|not|product|times|andn|orn|maskadd|xorand|andadd|oradd|xoradd|xorbc|xorbo|xorbx|andbo|andbx|andbc|orbc|orbo|orbx|[+*/\-&|^~(,])\s*$/i;
   const tailVal=/[0-9A-Za-z_)]\s*$/;
   const splitArgs=s=>{const parts=[];let depth=0,cur='';for(const ch of s){if(ch==='('){depth++;cur+=ch;}else if(ch===')'){depth--;cur+=ch;}else if(ch===','&&depth===0){parts.push(cur);cur='';}else cur+=ch;}parts.push(cur);return parts.map(p=>p.trim());};
   const expandFn=(s,depth,afterOp)=>{
@@ -177,14 +177,27 @@ export function compile(source, {fuse = true} = {}) {
    const name=m[1].toLowerCase();
    let j=m.index+m[0].length,nest=1;
    while(j<s.length&&nest){const c=s[j];if(c==='(')nest++;else if(c===')')nest--;j++;}
-    if(nest)fail('MALFORMED_EXPRESSION','Function needs two arguments or more (up to eight), like and(45, 34).',{reason:'unclosed-function',operation:name});
+    if(nest)fail('MALFORMED_EXPRESSION',`Missing closing parenthesis for ${name}(...).`,{reason:'unclosed-function',operation:name});
     const args=splitArgs(s.slice(m.index+m[0].length,j-1));
     if(name==='not'){
       if(args.length!==1||!args[0])fail('MALFORMED_EXPRESSION','Function not needs exactly one argument, like not(5).',{reason:'wrong-argument-count',operation:name,expected:1,actual:args.filter(Boolean).length,recoveredOperands:args.filter(Boolean),recoveredOperators:[name]});
       const made=`~(${expandFn(args[0],depth+1)})`;
       return before+made+expandFn(s.slice(j),depth,true);
     }
-    if(name==='maskadd'||name==='xorand'||name==='andadd'||name==='oradd'||name==='xoradd'||name==='andn'||name==='orn'){
+    if(name==='nand'||name==='nor'||name==='xnor'){
+      if(args.length<2||args.length>8||args.some(a=>!a))fail('MALFORMED_EXPRESSION','Function needs two arguments or more (up to eight), like and(45, 34).',{reason:'wrong-argument-count',operation:name,min:2,max:8,actual:args.filter(Boolean).length,recoveredOperands:args.filter(Boolean),recoveredOperators:[name]});
+      const ea=args.map(a=>expandFn(a,depth+1));
+      // Binary nand/nor/xnor stay named so Dual-LUT nest fusion can see them.
+      if(ea.length===2){
+        const made=`${name}(${ea[0]}, ${ea[1]})`;
+        return before+made+expandFn(s.slice(j),depth,true);
+      }
+      const fold=ea.slice(1).reduce((acc,a)=>`(${acc} ${FN[name]} ${a})`,ea[0]);
+      return before+`~(${fold})`+expandFn(s.slice(j),depth,true);
+    }
+    if(name==='maskadd'||name==='xorand'||name==='andadd'||name==='oradd'||name==='xoradd'||name==='andn'||name==='orn'
+      ||name==='xorbc'||name==='xorbo'||name==='xorbx'||name==='andbo'||name==='andbx'||name==='andbc'
+      ||name==='orbc'||name==='orbo'||name==='orbx'){
       const need=(name==='andn'||name==='orn')?2:3;
       if(args.length!==need||args.some(a=>!a))fail('MALFORMED_EXPRESSION',`Function ${name} needs exactly ${need===2?'two':'three'} arguments, like ${name}(${need===2?'6, 3':'1, 2, 3'}).`,{reason:'wrong-argument-count',operation:name,expected:need,actual:args.filter(Boolean).length,recoveredOperands:args.filter(Boolean),recoveredOperators:[name]});
       const ea=args.map(a=>expandFn(a,depth+1));
@@ -193,15 +206,14 @@ export function compile(source, {fuse = true} = {}) {
     }
     if(args.length<2||args.length>8||args.some(a=>!a))fail('MALFORMED_EXPRESSION','Function needs two arguments or more (up to eight), like and(45, 34).',{reason:'wrong-argument-count',operation:name,min:2,max:8,actual:args.filter(Boolean).length,recoveredOperands:args.filter(Boolean),recoveredOperators:[name]});
     const fold=args.slice(1).reduce((acc,a)=>`(${acc} ${FN[name]} ${expandFn(a,depth+1)})`,expandFn(args[0],depth+1));
-    const made=NEG.has(name)?`~(${fold})`:fold;
-    return before+made+expandFn(s.slice(j),depth,true);
+    return before+fold+expandFn(s.slice(j),depth,true);
   };
   expr=expandFn(expr,0,false);
   for(const [w,o] of [['plus','+'],['minus','-'],['and','&'],['or','|'],['xor','^']])expr=expr.replace(new RegExp('\\b'+w+'\\b','gi'),o);
-  if(!/^\/calc\b/i.test(text)&&!/[\d()*+/\-&|^~]/.test(expr))return null;
-  if(!/^\/calc\b/i.test(text)&&!/^(?:[\d(~+*/\-^&|]|R[0-7]\b|(?:maskadd|xorand|andadd|oradd|xoradd|andn|orn)\s*\()/i.test(expr)&&!(/\d/.test(expr)&&/[+*/\-&|^~]|\bof\b/.test(expr)))return null;
+  if(!/^\/calc\b/i.test(text)&&!/[\d()*+/\-&|^~]/.test(expr)&&!/\b(?:nand|nor|xnor)\s*\(/i.test(expr))return null;
+  if(!/^\/calc\b/i.test(text)&&!/^(?:[\d(~+*/\-^&|]|R[0-7]\b|(?:maskadd|xorand|andadd|oradd|xoradd|andn|orn|xorbc|xorbo|xorbx|andbo|andbx|andbc|orbc|orbo|orbx|nand|nor|xnor)\s*\()/i.test(expr)&&!(/\d/.test(expr)&&/[+*/\-&|^~]|\bof\b/.test(expr)))return null;
   const reserved=new Set();
-  const SINGLE=new Set(['maskadd','xorand','andadd','oradd','xoradd','andn','orn']);
+  const SINGLE=new Set(['maskadd','xorand','andadd','oradd','xoradd','andn','orn','xorbc','xorbo','xorbx','andbo','andbx','andbc','orbc','orbo','orbx','nand','nor','xnor']);
   for(const w of expr.match(/(?<![0-9A-Za-z_])[A-Za-z_][A-Za-z0-9_]*/g)||[]){
    if(/^R[0-7]$/i.test(w))reserved.add(Number(w[1]));
    else if(/^R[0-9]+$/i.test(w))fail('INVALID_REGISTER','Use registers R0–R7.',{register:w,min:0,max:7});
@@ -216,8 +228,11 @@ export function compile(source, {fuse = true} = {}) {
   }
   let i=0;const lines=[],free=[7,6,5,4,3,2,1,0].filter(r=>!reserved.has(r)),prec={'|':1,'^':2,'&':3,'+':4,'-':4,'*':5,'/':5};
   const OPM={'+':'ADD','-':'SUB','*':'MUL','/':'DIV','&':'AND','|':'OR','^':'XOR'},SYM={ADD:'+',SUB:'-',MUL:'*',DIV:'/',AND:'&',OR:'|',XOR:'^'};
-  const TRI={maskadd:'MASKADD',xorand:'XORAND',andadd:'ANDADD',oradd:'ORADD',xoradd:'XORADD'};
+  const TRI={maskadd:'MASKADD',xorand:'XORAND',andadd:'ANDADD',oradd:'ORADD',xoradd:'XORADD',
+    xorbc:'XORBC',xorbo:'XORBO',xorbx:'XORBX',andbo:'ANDBO',andbx:'ANDBX',andbc:'ANDBC',
+    orbc:'ORBC',orbo:'ORBO',orbx:'ORBX'};
   const BIN2={andn:'ANDN',orn:'ORN'};
+  const NEGBIN={nand:'NAND',nor:'NOR',xnor:'XNOR'};
   function parseAST(min=0,depth=0){
    if(depth>32)fail('MALFORMED_EXPRESSION','Expression is too deeply nested.',{reason:'nesting-depth',maxDepth:32});
    let t=tokens[i++],node;
@@ -229,13 +244,15 @@ export function compile(source, {fuse = true} = {}) {
     const lw=t.toLowerCase();
     if(/^R[0-7]$/i.test(t))node={k:'reg',r:Number(t[1])};
     else if(/^R\d+$/i.test(t))fail('INVALID_REGISTER','Use registers R0–R7.',{register:t,min:0,max:7});
-    else if((TRI[lw]||BIN2[lw])&&tokens[i]==='('){
+    else if((TRI[lw]||BIN2[lw]||NEGBIN[lw])&&tokens[i]==='('){
       i++;const need=TRI[lw]?3:2,args=[];
       if(tokens[i]===')')fail('MALFORMED_EXPRESSION',`Function ${lw} needs exactly ${need} arguments.`,{reason:'wrong-argument-count',operation:lw,expected:need,actual:0});
       for(;;){args.push(parseAST(0,depth+1));if(tokens[i]===','){i++;continue;}break;}
       if(tokens[i++]!==')')fail('MALFORMED_EXPRESSION','Missing closing parenthesis.',{reason:'missing-closing-parenthesis',operation:lw});
       if(args.length!==need)fail('MALFORMED_EXPRESSION',`Function ${lw} needs exactly ${need} arguments.`,{reason:'wrong-argument-count',operation:lw,expected:need,actual:args.length});
-      node=TRI[lw]?{k:'tri',op:TRI[lw],fn:lw,args}:{k:'bin2',op:BIN2[lw],fn:lw,args};
+      if(TRI[lw])node={k:'tri',op:TRI[lw],fn:lw,args};
+      else if(BIN2[lw])node={k:'bin2',op:BIN2[lw],fn:lw,args};
+      else node={k:'bin',op:NEGBIN[lw],l:args[0],r:args[1]};
     }
     else unknownError(t,prepared);
    }
@@ -249,7 +266,9 @@ export function compile(source, {fuse = true} = {}) {
    if(n.k==='const')return n.raw;
    if(n.k==='reg')return 'R'+n.r;
    if(n.k==='not'){const s=show(n.a);return '~'+((n.a.k==='const'||n.a.k==='reg')?s:`(${s})`);}
-   if(n.k==='tri'||n.k==='bin2')return `${n.fn}(${n.args.map(show).join(', ')})`;
+   if(n.k==='tri'||n.k==='bin2')return `${n.fn||n.op.toLowerCase()}(${n.args.map(show).join(', ')})`;
+   // Match tomato understood form: nor(a,b) → ~((a | b)) while AST keeps NOR for nest fusion.
+   if(n.k==='bin'&&NEG_BIN[n.op])return `~((${show(n.l)} ${SYM[NEG_BIN[n.op]]} ${show(n.r)}))`;
    return `(${show(n.l)} ${SYM[n.op]} ${show(n.r)})`;
   };
   const copy=a=>{const t=alloc();lines.push(`OR R${t},R${a},R${a}`);return t;};
@@ -259,9 +278,32 @@ export function compile(source, {fuse = true} = {}) {
    if(depth>32)fail('MALFORMED_EXPRESSION','Expression is too deeply nested.',{reason:'nesting-depth',maxDepth:32});
    if(n.k==='const'){const r=alloc();lines.push(`R${r}=${n.v}`);return r;}
    if(n.k==='reg')return n.r;
-   if(n.k==='not'){let a=gen(n.a,depth+1);if(reserved.has(a))a=copy(a);const c=alloc();lines.push(`R${c}=4294967295`);lines.push(`XOR R${a},R${a},R${c}`);free.push(c);return a;}
-   if(n.k==='tri'){const regs=n.args.map(a=>gen(a,depth+1));let ra=regs[0];const rb=regs[1],rc=regs[2];if(reserved.has(ra))ra=copy(ra);lines.push(`${n.op} R${ra},R${ra},R${rb},R${rc}`);for(const t of [rb,rc]){if(!reserved.has(t)&&t!==ra)free.push(t);}return ra;}
-   if(n.k==='bin2'){let ra=gen(n.args[0],depth+1);const rb=gen(n.args[1],depth+1);if(reserved.has(ra))ra=copy(ra);lines.push(`${n.op} R${ra},R${ra},R${rb}`);if(!reserved.has(rb)&&rb!==ra)free.push(rb);return ra;}
+   if(n.k==='not'){
+    let a=gen(n.a,depth+1);if(reserved.has(a))a=copy(a);const c=alloc();lines.push(`R${c}=4294967295`);lines.push(`XOR R${a},R${a},R${c}`);free.push(c);return a;
+   }
+   if(n.k==='tri'){
+    const regs=n.args.map(a=>gen(a,depth+1));
+    let ra=regs[0];const rb=regs[1],rc=regs[2];
+    if(reserved.has(ra))ra=copy(ra);
+    lines.push(`${n.op} R${ra},R${ra},R${rb},R${rc}`);
+    for(const t of [rb,rc]){if(!reserved.has(t)&&t!==ra)free.push(t);}
+    return ra;
+   }
+   if(n.k==='bin2'){
+    let ra=gen(n.args[0],depth+1);const rb=gen(n.args[1],depth+1);
+    if(reserved.has(ra))ra=copy(ra);
+    lines.push(`${n.op} R${ra},R${ra},R${rb}`);
+    if(!reserved.has(rb)&&rb!==ra)free.push(rb);
+    return ra;
+   }
+   if(n.k==='bin'&&NEG_BIN[n.op]){
+    let a=gen(n.l,depth+1),b=gen(n.r,depth+1);
+    if(reserved.has(a))a=copy(a);
+    lines.push(`${NEG_BIN[n.op]} R${a},R${a},R${b}`);
+    if(!reserved.has(b)&&b!==a)free.push(b);
+    const c=alloc();lines.push(`R${c}=4294967295`);lines.push(`XOR R${a},R${a},R${c}`);free.push(c);
+    return a;
+   }
    if(n.k==='bin'&&n.op==='MUL'){
     const choices=[];
     if(n.r.k==='const'&&n.r.v>=0)choices.push({value:n.l,multiplier:n.r.v});
@@ -304,29 +346,46 @@ export function compile(source, {fuse = true} = {}) {
   }
   const root=parseAST();
   if(i!==tokens.length){const t=tokens[i];if(t==='%')fail('UNSUPPORTED_OPERATION',`'${t}' is not installed. Tomato runs + - * / & | ^ ~.`,{operation:t});fail('MALFORMED_EXPRESSION','Unsupported expression. Try 23 + 19.',{reason:'trailing-token'});}
-  let rootShown=show(root);if(rootShown.startsWith('(')&&rootShown.endsWith(')'))rootShown=rootShown.slice(1,-1);
-  understood=rootShown;
-  ast=serializeAst(root);
-  // Fuse only identities represented by installed single-instruction ABI operations.
+  // Fuse Dual-LUT identities: arithmetic compounds + nested Boolean forms.
   // Operand loads remain real instructions; no host-side result evaluation.
   const fused = n => {
    if(n.k==='bin'){
     const l=fused(n.l), r=fused(n.r);
+    const nest=fuseBoolNest(n.op,l,r);
+    if(nest)return nest;
     if(n.op==='ADD'){
      const op={AND:'ANDADD',OR:'ORADD',XOR:'XORADD'}[l.op];
-     if(l.k==='bin'&&op)return {k:'tri',op,args:[l.l,l.r,r]};
-     if(r.k==='bin'&&r.op==='AND')return {k:'tri',op:'MASKADD',args:[l,r.l,r.r]};
+     if(l.k==='bin'&&op)return {k:'tri',op,fn:op.toLowerCase(),args:[l.l,l.r,r]};
+     if(r.k==='bin'&&r.op==='AND')return {k:'tri',op:'MASKADD',fn:'maskadd',args:[l,r.l,r.r]};
      const swapped={OR:'ORADD',XOR:'XORADD'}[r.op];
-     if(r.k==='bin'&&swapped)return {k:'tri',op:swapped,args:[r.l,r.r,l]};
+     if(r.k==='bin'&&swapped)return {k:'tri',op:swapped,fn:swapped.toLowerCase(),args:[r.l,r.r,l]};
     }
-    if((n.op==='AND'||n.op==='OR')&&r.k==='not')return {k:'bin2',op:n.op+'N',args:[l,r.a]};
+    if((n.op==='AND'||n.op==='OR')&&r.k==='not')return {k:'bin2',op:n.op+'N',fn:(n.op+'N').toLowerCase(),args:[l,r.a]};
     return {...n,l,r};
    }
-   if(n.k==='not')return {...n,a:fused(n.a)};
+   if(n.k==='not'){
+    // Collapse ~(and/or/xor …) before the child fuses into ANDBC/ORBC/…,
+    // so nand(a,b,c) stays one Dual-LUT op instead of ANDBC+NOT.
+    const negOuter={AND:'NAND',OR:'NOR',XOR:'XNOR'}[n.a.op];
+    if(n.a.k==='bin'&&negOuter){
+      const l=fused(n.a.l), r=fused(n.a.r);
+      const nest=fuseBoolNest(negOuter,l,r);
+      if(nest)return nest;
+      return {k:'not',a:{...n.a,l,r}};
+    }
+    const a=fused(n.a);
+    const collapsed=fuseNotNest({k:'not',a});
+    if(collapsed)return collapsed;
+    return {...n,a};
+   }
    if(n.args)return {...n,args:n.args.map(fused)};
    return n;
   };
-  const rr=gen(fuse?fused(root):root);
+  const tree=fuse?fused(root):root;
+  let rootShown=show(tree);if(rootShown.startsWith('(')&&rootShown.endsWith(')'))rootShown=rootShown.slice(1,-1);
+  understood=rootShown;
+  ast=serializeAst(tree);
+  const rr=gen(tree);
   text='/run\n'+lines.concat(`RETURN R${rr}`).join('\n');
  }
  const lines=text.slice(4).split(/[;\n]/).map(s=>s.trim()).filter(Boolean),out=[1];let returned=false;
@@ -344,9 +403,9 @@ export function compile(source, {fuse = true} = {}) {
   if(m){const n=m[2].startsWith('-')?-Number(m[2].slice(1)):Number(m[2]);if(!Number.isInteger(n)||n< -2147483648||n>4294967295)fail('OUT_OF_RANGE','Literal is outside 32-bit range.',{range:'literal',value:m[2],min:-2147483648,max:4294967295});out.push(1,reg(m[1]),n>>>24,(n>>>16)&255,(n>>>8)&255,n&255);continue;}
   m=line.match(/^(LOAD)\s+(R\d+)\s*,\s*\[(\d+)\]$/i)||line.match(/^(STORE)\s*\[(\d+)\]\s*,\s*(R\d+)$/i);
   if(m){const load=m[1].toUpperCase()==='LOAD',offset=Number(m[load?3:2]);if(offset>255)fail('OUT_OF_RANGE','Memory offsets are 0–255.',{range:'memory-offset',value:offset,min:0,max:255});out.push(load?32:33,reg(m[load?2:3]),offset);continue;}
-  const parts=line.replaceAll(',',' ').split(/\s+/),op=parts.shift().toUpperCase(),code={ADD:2,SUB:3,AND:4,OR:5,XOR:6,MASKADD:7,XORAND:8,ANDADD:9,ORADD:10,XORADD:11,ANDN:12,ORN:13}[op];
+  const parts=line.replaceAll(',',' ').split(/\s+/),op=parts.shift().toUpperCase(),code={ADD:2,SUB:3,AND:4,OR:5,XOR:6,MASKADD:7,XORAND:8,ANDADD:9,ORADD:10,XORADD:11,ANDN:12,ORN:13,XORBC:14,XORBO:15,XORBX:16,ANDBO:17,ANDBX:18,ANDBC:19,ORBC:20,ORBO:21,ORBX:22,NANDAND:23,NANDOR:24,NANDXOR:25,NANDNAND:26,NANDNOR:27,NANDXNOR:28,NORAND:29,NOROR:30,NORXOR:31,NORNAND:34,NORNOR:35,NORXNOR:36,ANDNAND:37,ANDNOR:38,ANDXNOR:39,ORNAND:40,ORNOR:41,ORXNOR:42,XORNAND:43,XORNOR:44,XORXNOR:45}[op];
   if(op==='RETURN'){if(parts.length!==1)fail('INVALID_INSTRUCTION','RETURN needs one register.',{instruction:'RETURN',reason:'wrong-operand-count',expected:1,actual:parts.length});out.push(48,reg(parts[0]));returned=true;}
-  else if(code){const count=(code>=7&&code!==12&&code!==13)?4:3;if(parts.length!==count)fail('INVALID_INSTRUCTION','Wrong operand count.',{instruction:op,reason:'wrong-operand-count',expected:count,actual:parts.length});out.push(code,...parts.map(reg));if(count===3)out.push(0);}
+  else if(code){const count=(code>=7&&code!==12&&code!==13)||BOOL3_OPS.includes(op)?4:3;if(parts.length!==count)fail('INVALID_INSTRUCTION','Wrong operand count.',{instruction:op,reason:'wrong-operand-count',expected:count,actual:parts.length});out.push(code,...parts.map(reg));if(count===3)out.push(0);}
   else fail('INVALID_INSTRUCTION','Unsupported instruction: '+op,{instruction:op,reason:'unsupported'});
  }
   if(!returned)fail('INVALID_INSTRUCTION','End the program with RETURN R0 (or another register).',{instruction:'RETURN',reason:'missing'});

@@ -70,12 +70,12 @@ test('success and in-flight copy stay stable instead of rotating phrases', () =>
     {phase: 'succeeded', compute: true, via: 'virtual'},
     {phase: 'succeeded', voice: 'envelop', text: 'The reply envelope contains the return value.', technical: 'Virtual Tomato · browser CPU emulator'},
   );
-  assert.equal(compute.title, 'Result ready');
+  assert.equal(compute.title, null);
   assert.equal(compute.text, null);
 
   const reply = presentation(
     {phase: 'succeeded', compute: false, via: 'virtual', replies: ['Hello']},
-    {phase: 'succeeded', voice: 'envelop', text: 'Reply ready.', technical: 'Virtual Tomato · deterministic greeting rule'},
+    {phase: 'succeeded', voice: 'envelop', text: 'Reply ready.', technical: 'Virtual Tomato'},
   );
   assert.equal(reply.title, null);
   assert.equal(reply.text, null);

@@ -59,9 +59,8 @@ export function presentation(job, view, options = {}) {
   const guide = guidanceFor(code);
   if (guide) return {...view, ...guide, guidance: view.guidance || guide.guidance, tone: 'guidance', pending: false, voice: 'envelop'};
   if (view.phase === 'succeeded') {
-    // Keep provenance; drop random catalog lines that competed with the actual result.
-    if (!job.compute) return {...view, title: null, text: null, tone: 'success'};
-    return {...view, title: 'Result ready', text: null, tone: 'success'};
+    // Provenance stays on the result bubble; no "Result ready" chrome.
+    return {...view, title: null, text: null, tone: 'success'};
   }
   if (view.phase === 'unknown') return {...view, title: 'Waiting for confirmation', tone: 'waiting', text: 'The connection paused before we could confirm the hardware result. Check its status before trying this job again.'};
   if (view.phase === 'queued' && job.via === 'hardware') {

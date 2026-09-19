@@ -1,4 +1,6 @@
 // Local UI fixture: no production requests, accounts, hardware jobs or messages.
+// Tomato presence is offline here on purpose — use production for a live bridge.
+// Virtual Tomato (browser CPU) still runs compute locally.
 // node tools/testing/preview.mjs, then http://127.0.0.1:8765/chat/
 import http from 'node:http';
 import {readFile} from 'node:fs/promises';
@@ -45,4 +47,4 @@ http.createServer(async (req,res)=>{
     if(file===resolve(root,'chat/chat.js'))content=content.toString().replace(/const SUPABASE_URL = '[^']+';/,"const SUPABASE_URL = 'http://127.0.0.1:8765/__fixture';");
     res.writeHead(200,{'Content-Type':types[extname(file)]||'application/octet-stream','Cache-Control':'no-store'});res.end(content);
   }catch(error){res.writeHead(404);res.end('Local fixture: '+error.message);}
-}).listen(8765,'127.0.0.1',()=>console.log('Local fixture: http://127.0.0.1:8765/chat/ (hardware offline, real browser CPU)'));
+}).listen(8765,'127.0.0.1',()=>console.log('Local fixture: http://127.0.0.1:8765/chat/ (self-contained; Tomato offline; Virtual compute works)'));

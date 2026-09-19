@@ -28,7 +28,7 @@ test('operation phases map to compact view models', () => {
 
   const succeeded = statusView({id: 'job-1', phase: PHASES.SUCCEEDED, compute: true, target: 'Virtual Tomato · browser CPU emulator'});
   assert.equal(succeeded.resultFirst, true);
-  assert.equal(succeeded.title, 'Result ready');
+  assert.equal(succeeded.title, null);
   assert.equal(succeeded.text, null);
   assert.equal(succeeded.technical, 'Virtual Tomato · browser CPU emulator');
 
@@ -37,12 +37,12 @@ test('operation phases map to compact view models', () => {
     phase: PHASES.SUCCEEDED,
     compute: false,
     via: 'virtual',
-    target: 'Virtual Tomato · deterministic greeting rule',
+    target: 'Virtual Tomato',
     replies: ['Hello, Ada! I\'m Virtual Tomato.'],
   });
   assert.equal(reply.title, null);
   assert.equal(reply.text, null);
-  assert.equal(reply.technical, 'Virtual Tomato · deterministic greeting rule');
+  assert.equal(reply.technical, 'Virtual Tomato');
 
   const unknown = statusView({phase: PHASES.UNKNOWN});
   assert.equal(unknown.voice, 'envelop');

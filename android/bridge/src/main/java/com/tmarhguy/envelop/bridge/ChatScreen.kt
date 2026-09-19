@@ -331,7 +331,7 @@ fun ChatScreen(
                             TextButton(onClick = { showHelp = false }) { Text("Close") }
                         }
                         Text(
-                            "Choose an example. Results name Physical Tomato when hardware runs them, or Reviewed local answer for knowledge.",
+                            "Choose an example. Hardware runs are labeled Physical Tomato; chat replies stay in the conversation.",
                             style = MaterialTheme.typography.bodySmall,
                         )
                         TomatoPlayground.HELP_GROUPS.forEach { group ->
@@ -378,7 +378,7 @@ fun ChatScreen(
                                 conversation = id,
                                 prompt = original,
                                 program = null,
-                                status = "Reviewed local answer",
+                                status = "",
                                 result = reply,
                             ),
                         )
@@ -402,7 +402,7 @@ fun ChatScreen(
                                 conversation = id,
                                 prompt = original,
                                 program = null,
-                                status = "Reviewed local answer",
+                                status = "",
                                 result = knowledge.answer,
                                 knowledge = knowledge,
                             ),
@@ -521,10 +521,11 @@ private fun ComputeJobCard(card: ComputeCard) {
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(card.prompt)
-                Text(card.status, style = MaterialTheme.typography.labelLarge)
+                if (card.status.isNotBlank()) {
+                    Text(card.status, style = MaterialTheme.typography.labelLarge)
+                }
                 if (card.knowledge != null) {
                     Text(card.result)
-                    Text("Source: ${card.knowledge.source}", style = MaterialTheme.typography.bodySmall)
                     card.knowledge.actions.forEach { action ->
                         Text("→ ${action.label}: ${action.prompt}", style = MaterialTheme.typography.bodySmall)
                     }

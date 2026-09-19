@@ -80,7 +80,8 @@ test('virtual mode greets immediately and physical mode still reaches Tomato', (
   assert.match(sendFlow, /if \(greet && mode === 'virtual'\) \{\s*addVirtualGreeting\(body\)/);
   assert.match(sendFlow, /if \(state\.tomatoOnline\) markAwaitTomato\(4\)/);
   assert.match(greeting, /fullName\.split\(\/\\s\+\/\)\[0\]/);
-  assert.match(greeting, /Virtual Tomato · deterministic greeting rule/);
+  assert.match(greeting, /Virtual Tomato/);
+  assert.doesNotMatch(greeting, /deterministic greeting rule/);
   assert.match(greeting, /Hello, \$\{firstName\}! I'm Virtual Tomato\./);
   assert.match(source, /rules\.conversationReply\(body\)/);
   assert.match(source, /addGuidanceJob\(body\)/);
@@ -110,7 +111,7 @@ test('reviewed actions submit immediately and links stay navigation-only', () =>
   assert.match(source, /await submitCuratedText\(prompt\)/);
   assert.match(source, /function safeKnowledgeHref/);
   assert.match(source, /renderAnswerAction\(action\)/);
-  assert.match(source, /sourceLink\.rel = 'noopener noreferrer'/);
+  assert.match(source, /anchor\.rel = 'noopener noreferrer'/);
   assert.doesNotMatch(
     source.slice(source.indexOf('function renderAnswerAction'), source.indexOf('function renderKnowledgeJob')),
     /runHardware|runVirtual|request\(/,
@@ -192,8 +193,8 @@ test('open-compute explainer states the deterministic footprint honestly', () =>
   assert.match(html, /tested 96 KiB source budget/);
   assert.match(html, /Generative response space/);
   assert.match(html, /One inspectable path/);
-  assert.match(html, /Same input/);
-  assert.match(html, /12 · 0x0000000C/);
+  assert.match(html, /Same three-input Dual-LUT form/);
+  assert.match(html, /85 · 0x00000055/);
 
   const behaviorBytes = ['knowledge.mjs', 'intents.mjs', 'help.mjs']
     .reduce((total, file) => total + statSync(join(__dirname, file)).size, 0);

@@ -132,7 +132,7 @@ object TomatoPlayground {
         ),
         "assistantIdentity" to KnowledgeCard(
             "assistantIdentity",
-            "I’m the Envelop Tomato playground on this private bridge: local knowledge cards plus Physical Tomato compute when the lease is online.",
+            "This is Envelop’s deterministic Tomato playground on the private bridge: local knowledge cards plus Physical Tomato compute when the lease is online — not a chatbot persona.",
             "https://tmarhguy.github.io/envelop/",
         ),
         "bridge" to KnowledgeCard(
