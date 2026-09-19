@@ -582,6 +582,80 @@ h2 {
   color: var(--on-ink);
 }
 
+.proof-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 8px 0 0;
+}
+.proof-shot {
+  margin: 0;
+  min-width: 0;
+}
+.proof-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  object-position: top center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  cursor: zoom-in;
+}
+.proof-shot figcaption {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.proof-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.proof-lightbox[hidden] { display: none; }
+.proof-lightbox-veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 22, 20, 0.78);
+}
+.proof-lightbox-panel {
+  position: relative;
+  z-index: 1;
+  max-width: min(1120px, 96vw);
+  max-height: 92vh;
+}
+.proof-lightbox-panel img {
+  display: block;
+  max-width: 96vw;
+  max-height: 88vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #111;
+}
+.proof-lightbox-close {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+html.is-proof-open { overflow: hidden; }
+
 .platform-scroller {
   margin-inline: calc(50% - 50vw);
   padding-inline: max(32px, calc(50vw - 560px));
@@ -761,12 +835,6 @@ h3 {
   color: var(--muted);
   font-size: 14px;
   line-height: 1.7;
-}
-.evidence-pair {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-  margin: 30px 0 20px;
 }
 .evidence-shot,
 .evidence-card {
@@ -1003,7 +1071,6 @@ footer .disclaimer {
   .info-hero { padding-block: 40px 28px; }
   .info-grid { grid-template-columns: 1fr; padding-bottom: 44px; }
   .info-card.wide { grid-column: auto; }
-  .evidence-pair { display:none; }
 
   .section-head {
     display: block;
@@ -1024,6 +1091,8 @@ footer .disclaimer {
     width: 100%;
     min-width: 0;
   }
+  .proof-row { gap: 8px; }
+  .proof-shot figcaption { font-size: 11px; }
 
   /* Horizontal snap row — readable cards, peek next */
   .platform-scroller {

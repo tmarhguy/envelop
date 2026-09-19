@@ -225,7 +225,14 @@ test('mobile pages prioritize the recording and omit screenshot galleries', () =
   assert.match(siteCss, /\.mobile-hero-start \{[\s\S]*?display: flex;[\s\S]*?margin: 12px 6px 4px;/);
   assert.doesNotMatch(siteCss.slice(siteCss.lastIndexOf('.mobile-hero-start {')), /position:\s*absolute/);
   assert.match(siteCss, /\.hero-demo \{ order:-1;max-width:none; \}/);
-  assert.match(siteCss, /\.evidence-pair \{ display:none; \}/);
+  assert.doesNotMatch(siteHtml, /envelop-conversation-list-unread-infinix/);
+  assert.doesNotMatch(siteHtml, /envelop-virtual-result-infinix/);
+  assert.doesNotMatch(siteHtml, /Web chat is implemented in this repository/);
+  assert.match(siteHtml, /class="proof-row"/);
+  assert.match(siteHtml, /media\/chat-on-tomato\.webp/);
+  assert.match(siteHtml, /media\/envelop-on-tomato\.webp/);
+  assert.match(siteHtml, /media\/tomato-compute\.webp/);
+  assert.equal((siteHtml.match(/class="proof-shot"/g) || []).length, 3);
 });
 
 test('minimal suggestions live inside the active chat instead of name entry', () => {

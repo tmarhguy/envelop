@@ -56,4 +56,37 @@ if(typeof window!=='undefined'){
   document.addEventListener('visibilitychange',sync);
   if(typeof reduce.addEventListener==='function') reduce.addEventListener('change',sync);
  }
+
+ const proofRow=document.querySelector('.proof-row');
+ if(proofRow){
+  const box=document.createElement('div');
+  box.className='proof-lightbox';
+  box.hidden=true;
+  box.innerHTML='<div class="proof-lightbox-veil" data-close></div><div class="proof-lightbox-panel" role="dialog" aria-modal="true" aria-label="Expanded photo"><button type="button" class="proof-lightbox-close" data-close aria-label="Close">&times;</button><div class="proof-lightbox-stage"></div></div>';
+  document.body.appendChild(box);
+  const stage=box.querySelector('.proof-lightbox-stage');
+  const close=()=>{
+   box.hidden=true;
+   document.documentElement.classList.remove('is-proof-open');
+   stage.replaceChildren();
+  };
+  const open=(src,alt)=>{
+   const img=document.createElement('img');
+   img.src=src;
+   img.alt=alt||'';
+   stage.replaceChildren(img);
+   box.hidden=false;
+   document.documentElement.classList.add('is-proof-open');
+   const closer=box.querySelector('.proof-lightbox-close');
+   if(closer) closer.focus();
+  };
+  proofRow.addEventListener('click',event=>{
+   const img=event.target.closest('.proof-shot img');
+   if(!img) return;
+   event.preventDefault();
+   open(img.currentSrc||img.src,img.alt);
+  });
+  box.addEventListener('click',event=>{ if(event.target.closest('[data-close]')) close(); });
+  document.addEventListener('keydown',event=>{ if(event.key==='Escape') close(); });
+ }
 }

@@ -4,25 +4,25 @@
 <script>(function(){try{var k="envelop-theme",s=localStorage.getItem(k),d=window.matchMedia("(prefers-color-scheme: dark)").matches,t=(s==="light"||s==="dark")?s:(d?"dark":"light");document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Envelop lets you message people—and text Tomato, a real custom computer running its own Envelop client in Tomato OS.">
+<meta name="description" content="Envelop lets you text Tomato, a real custom computer running its own Envelop client in Tomato OS.">
 <meta name="theme-color" content="#f7f5ef">
 <meta name="robots" content="index,follow">
 <link rel="canonical" href="https://tmarhguy.github.io/envelop/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Envelop">
-<meta property="og:title" content="Envelop — Text people. Text a computer.">
+<meta property="og:title" content="Envelop — Text a computer.">
 <meta property="og:description" content="A browser messenger where Tomato, a real custom computer running its own OS, can be one of your contacts.">
 <meta property="og:url" content="https://tmarhguy.github.io/envelop/">
 <meta property="og:image" content="https://tmarhguy.github.io/envelop/media/envelop-social-card.webp">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Envelop conversation list and a provenance-labeled Virtual Tomato reply beside the words Text people. Text a computer.">
+<meta property="og:image:alt" content="Envelop conversation list and a provenance-labeled Virtual Tomato reply beside the words Text a computer.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://tmarhguy.github.io/envelop/media/envelop-social-card.webp">
-<title>Envelop — Text people. Text a computer.</title>
+<title>Envelop — Text a computer.</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=20260918-theme-10">
-<script src="app.js?v=3e6c3316" defer></script>
+<link rel="stylesheet" href="style.css?v=20260919-proof">
+<script src="app.js?v=09efcbc7" defer></script>
 <script src="hello.js?v=215d771d" defer></script>
 <script src="theme.js?v=20260918-theme" defer></script>
 </head>
@@ -45,7 +45,7 @@
 <section class="hero wrap" aria-labelledby="title">
   <div class="hero-copy">
     <p class="eyebrow"><span class="dot"></span> THE MESSENGER WHERE A COMPUTER WRITES BACK</p>
-    <h1 id="title">Text people.<br>Text a computer.</h1>
+    <h1 id="title">Text a computer.</h1>
     <p class="intro">Tomato is a real 32-bit computer with Envelop running inside its operating system. Add it like a contact, send from your browser, and see whether physical or Virtual Tomato answered.</p>
     <div class="hero-actions"><a class="jump solid" href="chat/index.html">Start a conversation</a><a class="jump quiet" href="#path">See how Tomato receives it</a></div>
     <form class="hello-form" id="hello-form">
@@ -75,11 +75,20 @@
 <section class="downloads wrap journey-section" id="chat" aria-labelledby="chat-title">
   <div class="section-head"><div><p class="eyebrow">02 / WEB CHAT</p><h2 id="chat-title">The public client is the browser.</h2></div><p>No native app download required.</p></div>
   <div class="for-you"><div class="for-you-main"><p class="eyebrow">OPEN CHAT</p><h3>Pick a name. Start a conversation.</h3><p>Tomato stays pinned as a verified device contact. The mobile two-pane chat includes unread pips, typing feedback, queued messaging, and visibly labeled compute provenance.</p></div><a class="download ready" href="chat/index.html">Open web chat</a></div>
-  <div class="evidence-pair">
-    <figure class="evidence-shot"><img src="media/screenshots/envelop-conversation-list-unread-infinix.webp" width="1080" height="2207" loading="lazy" decoding="async" alt="Synthetic Guest conversation list on an Infinix phone, with verified Tomato pinned and an unread indicator"><figcaption>Current mobile web UI · real Infinix browser · deterministic synthetic records.</figcaption></figure>
-    <figure class="evidence-shot"><img src="media/screenshots/envelop-virtual-result-infinix.webp" width="1080" height="2207" loading="lazy" decoding="async" alt="Synthetic Envelop chat preview on an Infinix phone, labeled Virtual Tomato beside a virtual reply"><figcaption>Virtual Tomato preview · browser execution · no message queued for hardware.</figcaption></figure>
+  <div class="proof-row" role="list">
+    <figure class="proof-shot" role="listitem">
+      <img src="media/chat-on-tomato.webp" width="1124" height="766" loading="lazy" decoding="async" alt="Envelop browser chat with Tomato, Physical mode selected, showing labeled compute results">
+      <figcaption>Envelop web chat · Physical mode selected · results labeled</figcaption>
+    </figure>
+    <figure class="proof-shot" role="listitem">
+      <img src="media/envelop-on-tomato.webp" width="1092" height="614" loading="lazy" decoding="async" alt="Envelop inside Tomato OS showing a received bounded 32-bit job and result 0x00000905, with the bridge marked online">
+      <figcaption>Envelop on Tomato OS · HDMI capture</figcaption>
+    </figure>
+    <figure class="proof-shot" role="listitem">
+      <img src="media/tomato-compute.webp" width="1920" height="1440" loading="lazy" decoding="async" alt="Nexys A7 FPGA board with seven-segment display, programmer, and radio module on a breadboard">
+      <figcaption>Physical Tomato · Nexys A7. A photograph of the hardware, not a current online indicator</figcaption>
+    </figure>
   </div>
-  <p class="world-note">Web chat is implemented in this repository. The exact revision at the public endpoint and current hardware availability must be checked separately. <a class="text-link" href="status.html">Read current status</a>.</p>
 </section>
 
 <section class="origin wrap" id="physical" aria-labelledby="physical-title">
