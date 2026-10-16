@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="294" viewBox="0 0 920 294" role="img" aria-labelledby="title desc">
+<title id="title">Message path</title>
+<desc id="desc">The browser never talks to the board. Virtual Tomato is a separate path.</desc>
+<rect x="1" y="1" width="918" height="292" rx="12" fill="#fffdfb" stroke="#e7e5e4"/>
+<text x="28" y="32" fill="#78716c" font-family="Georgia, 'Iowan Old Style', serif" font-size="13">Message path</text>
+<text x="28" y="56" fill="#1c1917" font-family="Georgia, 'Iowan Old Style', serif" font-size="16">The browser never talks to the board. Virtual Tomato is a separate path.</text>
+<rect x="24.0" y="76" width="276.0" height="76" rx="8" fill="#fff" stroke="#e7e5e4"/>
+<rect x="24.5" y="84" width="3" height="60" rx="1.5" fill="#b91c1c"/>
+<text x="40.0" y="104" fill="#b91c1c" font-family="ui-monospace,Menlo,monospace" font-size="11">01</text>
+<text x="40.0" y="124" fill="#1c1917" font-family="Georgia, serif" font-size="15">Person</text>
+<text x="40.0" y="140" fill="#57534e" font-family="Arial,Helvetica,sans-serif" font-size="11">Opens the chat</text>
+<rect x="322.0" y="76" width="276.0" height="76" rx="8" fill="#fff" stroke="#e7e5e4"/>
+<rect x="322.5" y="84" width="3" height="60" rx="1.5" fill="#b91c1c"/>
+<text x="338.0" y="104" fill="#b91c1c" font-family="ui-monospace,Menlo,monospace" font-size="11">02</text>
+<text x="338.0" y="124" fill="#1c1917" font-family="Georgia, serif" font-size="15">Web app</text>
+<text x="338.0" y="140" fill="#57534e" font-family="Arial,Helvetica,sans-serif" font-size="11">HTTPS</text>
+<rect x="620.0" y="76" width="276.0" height="76" rx="8" fill="#fff" stroke="#e7e5e4"/>
+<rect x="620.5" y="84" width="3" height="60" rx="1.5" fill="#b91c1c"/>
+<text x="636.0" y="104" fill="#b91c1c" font-family="ui-monospace,Menlo,monospace" font-size="11">03</text>
+<text x="636.0" y="124" fill="#1c1917" font-family="Georgia, serif" font-size="15">Backend</text>
+<text x="636.0" y="140" fill="#57534e" font-family="Arial,Helvetica,sans-serif" font-size="11">Queue, 30-second lease</text>
+<rect x="24.0" y="196" width="276.0" height="76" rx="8" fill="#fff" stroke="#e7e5e4"/>
+<rect x="24.5" y="204" width="3" height="60" rx="1.5" fill="#b91c1c"/>
+<text x="40.0" y="224" fill="#b91c1c" font-family="ui-monospace,Menlo,monospace" font-size="11">04</text>
+<text x="40.0" y="244" fill="#1c1917" font-family="Georgia, serif" font-size="15">Bridge</text>
+<text x="40.0" y="260" fill="#57534e" font-family="Arial,Helvetica,sans-serif" font-size="11">Bluetooth, ENVELOP/1</text>
+<rect x="322.0" y="196" width="276.0" height="76" rx="8" fill="#fff" stroke="#e7e5e4"/>
+<rect x="322.5" y="204" width="3" height="60" rx="1.5" fill="#b91c1c"/>
+<text x="338.0" y="224" fill="#b91c1c" font-family="ui-monospace,Menlo,monospace" font-size="11">05</text>
+<text x="338.0" y="244" fill="#1c1917" font-family="Georgia, serif" font-size="15">Tomato OS</text>
+<text x="338.0" y="260" fill="#57534e" font-family="Arial,Helvetica,sans-serif" font-size="11">Envelop on the machine</text>
+<rect x="620.0" y="196" width="276.0" height="76" rx="8" fill="#fff" stroke="#e7e5e4"/>
+<rect x="620.5" y="204" width="3" height="60" rx="1.5" fill="#b91c1c"/>
+<text x="636.0" y="224" fill="#b91c1c" font-family="ui-monospace,Menlo,monospace" font-size="11">06</text>
+<text x="636.0" y="244" fill="#1c1917" font-family="Georgia, serif" font-size="15">Tomato CPU</text>
+<text x="636.0" y="260" fill="#57534e" font-family="Arial,Helvetica,sans-serif" font-size="11">Computes the reply</text>
+<path d="M301.0 114.0 h18.0" fill="none" stroke="#b91c1c" stroke-width="1.5"/>
+<path d="M317.0 110.5 l5 3.5 -5 3.5" fill="#b91c1c"/>
+<path d="M599.0 114.0 h18.0" fill="none" stroke="#b91c1c" stroke-width="1.5"/>
+<path d="M615.0 110.5 l5 3.5 -5 3.5" fill="#b91c1c"/>
+<path d="M758.0 152.0 V174.0 H162.0 V190.0" fill="none" stroke="#b91c1c" stroke-width="1.5"/>
+<path d="M158.5 188.0 l3.5 6 3.5-6" fill="#b91c1c"/>
+<path d="M301.0 234.0 h18.0" fill="none" stroke="#b91c1c" stroke-width="1.5"/>
+<path d="M317.0 230.5 l5 3.5 -5 3.5" fill="#b91c1c"/>
+<path d="M599.0 234.0 h18.0" fill="none" stroke="#b91c1c" stroke-width="1.5"/>
+<path d="M615.0 230.5 l5 3.5 -5 3.5" fill="#b91c1c"/>
+</svg>

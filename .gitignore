@@ -45,3 +45,4 @@ log/.obsidian/
 *~
 
 .vscode/
+/build/

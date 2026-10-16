@@ -1,0 +1,38 @@
+[#introduction]
+== Introduction
+
+Envelop surrounds the Tomato computer with a messaging system: a
+browser chat client anyone can open, a durable cloud backend, one
+nearby native bridge at a time, and the compact binary `ENVELOP/1`
+device protocol that reaches Tomato over Bluetooth.
+
+Tomato itself — processor, computer, and operating system — is
+maintained in the https://github.com/tmarhguy/tomato[Tomato repository].
+The Envelop endpoint inside Tomato OS lives there; the web app,
+backend, native bridge apps, and shared device protocol live here.
+
+=== Scope
+
+This manual documents the Envelop side: system path, wire contract,
+delivery semantics, backend calls, bridge operation, deployment,
+verification, and current limits. Tomato internals (CPU, ALU,
+firmware) are covered by the Tomato manual and referenced by path,
+not duplicated.
+
+=== Reading order
+
+Start with <<architecture,Architecture>> for the system path, then
+<<design,Design>> for the protocol and provenance rules that govern
+every claim on this site. Operators run bridges with
+<<operation,Operation>>; everyone checks
+<<limitations,Known limitations>> before quoting availability.
+
+=== Conventions
+
+* `monospace` marks commands, paths, identifiers, and literals.
+* File paths are repository-relative, e.g. `protocol/ENVELOP_PROTOCOL.md`.
+* Unmeasured values are written as `TBD (unmeasured)` — never estimated.
+* Status words are not interchangeable: implemented, verified,
+  hardware-accepted, deployed, and online mean different things. See
+  <<limitations,Known limitations>>.
+

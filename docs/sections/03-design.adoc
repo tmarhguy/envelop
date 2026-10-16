@@ -1,0 +1,89 @@
+[#design]
+== Design
+
+The design centers on a small binary wire contract, at-least-once
+delivery with session-local tokens, and strict provenance labels that
+separate physical hardware results from virtual execution.
+
+[#wire-contract]
+=== Wire contract
+
+`ENVELOP/1` replaces the legacy 95-character LF transport only when
+both ends run this protocol. Never negotiate by guessing from a
+Bluetooth name; bring-up against old LF firmware must fail
+verification rather than silently bridging.
+
+All integers are unsigned big endian. Each frame carries magic
+`50 47`, version `01`, a type byte, a route (`u16`), a payload length
+(`u16`), the payload, and a CRC-16/CCITT-FALSE over header and
+payload. Payloads are bounded to 512 bytes, so a frame never exceeds
+522 bytes. Receivers reject unknown types, versions, lengths, and
+CRCs, advance one byte to search for magic, and reset partial frames
+on disconnect.
+
+[cols="1,1,1,3",options="header"]
+|===
+| Frame | Type | Route | Payload
+| `HELLO` | 1 | 0 | Empty; bridge initiates verification
+| `HELLO_ACK` | 2 | 0 | Exact ASCII `ENVELOP/1` Tomato identity
+| `CONTACT_RESET` | 3 | 0 | Empty; discards session routes and dedup tokens
+| `CONTACT_UPSERT` | 4 | nonzero | Avatar, unread flag, 1–32 ASCII name bytes
+| `CHAT_MESSAGE` | 7 | nonzero | Delivery token (`u32`) plus 1–256 ASCII text bytes
+| `SEND_MESSAGE` | 8 | nonzero | Outgoing token (`u32`) plus 1–256 ASCII text bytes
+| `MESSAGE_ACK` | 9 | original route | Original token (`u32`)
+| `STATUS` | 10 | 0 | State byte: offline, syncing, or online
+| `COMPUTE_JOB` | 32 | nonzero | Token plus 1–508 bytes of Tomato job data
+| `COMPUTE_RESULT` | 33 | original route | Token, status byte, result (`u32`)
+|===
+
+`OPEN_CHAT` and `CHAT_HISTORY` exist in the contract for
+device-driven history requests, but current native bridge handlers do
+not implement that exchange. The full field reference is
+`protocol/ENVELOP_PROTOCOL.md`; the BLE adapter contract is
+`protocol/BLE_PROTOCOL.md`.
+
+[#delivery-semantics]
+=== Delivery semantics
+
+* Retries retain the same delivery token; Tomato deduplicates
+  `CHAT_MESSAGE` tokens before display.
+* If Tomato accepts a frame but the link fails before the cloud
+  acknowledgement is recorded, the message can be shown again after
+  resynchronization. Delivery is therefore *at least once* across
+  reconnect and power-loss boundaries; exactly-once display is not
+  claimed.
+* Cloud UUIDs stop at the bridge. Only bounded routes, delivery
+  tokens, and printable ASCII text cross BLE. The route table holds at
+  most eight contacts and routes are session-local.
+* In either direction, `MESSAGE_ACK` means protocol and backend
+  acceptance — not that a person read the message.
+
+[#compute-provenance]
+=== Compute provenance
+
+A person enters a supported expression; the browser compiles canonical
+Tomato bytecode; the chosen execution path decides the label:
+
+* *Hardware request* — a durable compute job is created, the leased
+  bridge claims it, Tomato executes `COMPUTE_JOB`, and the backend
+  completes the job from the matching `COMPUTE_RESULT`. Only this
+  completed backend hardware result may be labeled *Physical Tomato*
+  or *Hardware Tomato*.
+* *Offline compute or explicit preview* — the browser worker executes
+  immediately as *Virtual Tomato*, visibly labeled, never queued for
+  hardware.
+* *Timeout, disconnect, or ambiguous claimed job* — an unknown
+  hardware outcome. It must not be replayed virtually; fallback after
+  a hardware attempt requires a separately chosen action and a
+  confirmed terminal non-result.
+
+[#identity-vocabulary]
+=== Identity vocabulary
+
+*Verified Tomato* means the bridge received the exact binary
+`ENVELOP/1` Tomato identity after `HELLO`. This is a protocol
+identity check, not cryptographic attestation and not a
+confidentiality claim. Envelop is not documented as end-to-end
+encrypted; backend content and operator-visible bridge traffic are
+readable application data.
+

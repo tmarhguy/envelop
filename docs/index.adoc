@@ -1,0 +1,90 @@
+= Envelop Technical Reference Manual
+:author: Tyrone Marhguy
+:doctype: book
+:toc: left
+:toclevels: 3
+:sectnums:
+:sectnumlevels: 3
+:icons!:
+:stylesheet!:
+:webfonts!:
+:docinfo: shared
+:imagesdir: images
+:experimental:
+
+// Entry point for the static technical manual.
+// Add, remove, or reorder chapters by editing the include list below.
+// Each chapter lives in sections/ as NN-name.adoc with a level-1 (==) heading.
+
+[#overview]
+[preface]
+== A chat that reaches a computer
+
+Envelop is a web chat whose other end is a real 32-bit computer, Tomato. A person sends a message or a small compute job from the browser. A backend holds it until a nearby phone or computer can carry it over Bluetooth to Tomato. Tomato runs the job and writes an answer back.
+
+++++
+<!-- docs-hero -->
+++++
+
+[#quick-start]
+=== Quick start
+
+Open the https://tmarhguy.github.io/envelop/chat/[web chat] and send a
+message to Tomato. Messages wait safely in the backend queue when the
+physical bridge is offline. To play with the computer itself, visit
+https://tomato.tmarhguy.com/[Tomato OS].
+
+[#contents]
+=== Contents
+
+[cols="1,3",options="header"]
+|===
+| Chapter | Coverage
+| <<introduction,Introduction>> | Scope, conventions, and reading order.
+| <<architecture,Architecture>> | System path, components, and data model.
+| <<design,Design>> | Wire protocol, delivery semantics, and compute provenance.
+| <<interfaces,Interfaces>> | Chat, backend calls, and protocol documents.
+| <<operation,Operation>> | Bridge runbook and backend deployment.
+| <<verification,Verification>> | Test vectors, contract tests, and acceptance evidence.
+| <<implementation,Implementation>> | Clients, backend schema, and repository layout.
+| <<performance,Performance and limits>> | Bounded sizes and current measurement state.
+| <<limitations,Known limitations>> | Experimental boundary and open unknowns.
+|===
+
+[#documentation-conventions]
+=== Conventions
+
+* `monospace` identifies commands, paths, and code identifiers.
+* Paths are relative to the repository root unless stated otherwise.
+* Unmeasured results are marked `TBD (unmeasured)`.
+* When prose and implementation disagree, the
+  https://github.com/tmarhguy/envelop/blob/main/docs/documentation-policy.md[documentation
+  policy] decides which source wins; dated files under `log/` are history,
+  never current architecture.
+
+// Chapters — reorder freely. Filenames carry a numeric prefix only so
+// directory listings stay in reading order; the visible numbers come
+// from :sectnums:, not from filenames.
+//
+// Blank lines between the includes are significant: they terminate any
+// open block (e.g. a trailing list) in the previous file so the next
+// chapter heading is always parsed as a new section.
+include::sections/01-introduction.adoc[]
+
+include::sections/02-architecture.adoc[]
+
+include::sections/03-design.adoc[]
+
+include::sections/04-interfaces.adoc[]
+
+include::sections/05-operation.adoc[]
+
+include::sections/06-verification.adoc[]
+
+include::sections/07-implementation.adoc[]
+
+include::sections/08-performance.adoc[]
+
+include::sections/09-limitations.adoc[]
+
+include::theme/about.adoc[]

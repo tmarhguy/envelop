@@ -1,0 +1,41 @@
+[#implementation]
+== Implementation
+
+Each surface is implemented where its platform demands; the wire
+contract in `protocol/` is the shared source of truth between them.
+
+[#clients]
+=== Clients
+
+* *Browser* (`website/`) — public chat under `website/chat/`,
+  Virtual Tomato browser worker, and the static pages deployed to the
+  web surface.
+* *macOS* (`apple/`) — Swift package targeting macOS 14 (package
+  0.2.0): operator bridge plus test chat client.
+* *Android* (`android/`) — private owner app (package 0.2.0):
+  `android/core/` holds cloud API, protocol codecs, and compiler;
+  `android/bridge/` holds the owner UI plus foreground BLE bridge. No
+  public login or ownership-claim flow; never link it as a public
+  download.
+* *Tomato OS endpoint* — implemented in Tomato assembly and local
+  simulation in the Tomato repository, not here.
+
+[#backend-schema]
+=== Backend schema
+
+The sole schema file is `backend/migrations/001_envelop.sql`. Public
+tables cover profiles, conversations, messages, device queue, bridge
+leases, presence, compute jobs, and grants under row level security;
+bridge grants, administrators, trusted bridge users, and reserved
+names live in the private schema. Local behavior is pinned by
+`backend/tests.mjs`; `backend/smoke-live.sh` is reserved for
+explicitly authorized live runs.
+
+[#repository-layout]
+=== Repository layout
+
+`website/` stages only static files for the public deployment.
+Native Android and macOS packages build solely into gitignored
+private local directories — no native package belongs under
+`website/`, in the Pages artifact, or in public page links.
+

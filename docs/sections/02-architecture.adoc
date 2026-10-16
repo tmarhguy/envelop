@@ -1,0 +1,66 @@
+[#architecture]
+== Architecture
+
+Four blocks move a message from a person to silicon: the public web
+app, the Supabase backend, one nearby verified bridge, and the Envelop
+app inside Tomato OS driving the Tomato CPU.
+
+[#canonical-path]
+=== Canonical path
+
+`person → Envelop web app → backend queue → nearby verified bridge → Envelop in Tomato OS → Tomato CPU → labeled reply`
+
+The browser and backend never talk directly to the FPGA. Tomato has
+one current radio connection, while the backend independently permits
+one unexpired authenticated bridge lease at a time.
+
+[#system-context]
+=== System context
+
+.Envelop runtime message path
+image::envelop-runtime.svg[Message path from a person through the web app and backend queue and leased bridge and Tomato OS to the Tomato CPU,width=800]
+
+* *Public user device* — person, Envelop web app, and Virtual Tomato
+  (a browser worker for offline compute or explicit preview).
+* *Cloud boundary (Supabase)* — anonymous auth, PostgREST RPC with row
+  level security, and records for profiles, conversations, messages,
+  presence, the device queue, compute jobs, and the 30-second bridge
+  lease.
+* *Physically near Tomato* — one verified bridge (macOS 14 or private
+  Android) reaching Tomato over the nRF8001 Nordic UART BLE link with
+  binary `ENVELOP/1` framing.
+* *Tomato computer* — Envelop in Tomato OS plus the Tomato CPU.
+
+Virtual Tomato is a separate browser execution path, not a bridge and
+not a substitute result for an ambiguous hardware operation.
+
+[#repository-ownership]
+=== Repository ownership
+
+[cols="1,3",options="header"]
+|===
+| Directory | Responsibility
+| `website/` | Public chat, UI, and Virtual Tomato
+| `backend/` | Schema, row level security, queues, leases, jobs
+| `apple/` | macOS chat plus operator bridge
+| `android/core/` | Cloud API, protocol codecs, compiler
+| `android/bridge/` | Private owner UI plus BLE bridge
+| `protocol/` | Wire contract plus shared test vectors
+| `docs/` | Current architecture, operations, and status
+| `tools/` | Contract verification and platform tests
+|===
+
+[#state-boundaries]
+=== State boundaries
+
+Presence, lease, delivery, and read state are independent. A human
+heartbeat is not a bridge lease; delivery is not read state; checked-in
+source is not proof that hardware is online:
+
+* *Human online* — presence heartbeat state.
+* *Hardware online* — an unexpired authenticated bridge lease after
+  `ENVELOP/1` identity verification.
+* *Delivered* — Tomato `MESSAGE_ACK` plus the cloud queue update.
+* *Read* — never inferred; no read-receipt feature exists in the
+  current contract.
+

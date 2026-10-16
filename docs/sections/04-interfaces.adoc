@@ -1,0 +1,57 @@
+[#interfaces]
+== Interfaces
+
+Three surfaces matter: the public web chat, the backend remote calls,
+and the protocol documents that pin the wire format.
+
+[#web-chat]
+=== Web chat
+
+The browser is the general public client at
+https://tmarhguy.github.io/envelop/chat/[web chat]. It queues messages
+for physical Tomato, runs explicitly labeled Virtual Tomato
+execution, and never requires a bridge on the user's side. Which
+revision is deployed must be checked separately from repository
+source.
+
+[#backend-calls]
+=== Backend calls
+
+The backend exposes PostgREST RPC plus row level security over these
+core operations:
+
+[cols="1,3",options="header"]
+|===
+| Call | Effect
+| `send_message` | Stores a durable message and creates a queued device row
+| `bridge_pending` | Returns queued messages and jobs to the leased bridge
+| `ack_device_message` | Marks a queue row acknowledged after Tomato `MESSAGE_ACK`
+| `send_as_device` | Idempotently stores a Tomato reply; Tomato is acknowledged only after this succeeds
+| `claim_bridge` | Claims the 30-second authenticated lease for a fresh bridge instance
+| `release_bridge` | Releases the lease when possible on disconnect
+| `bootstrap_owner` | Dashboard-only first-owner setup; never granted to anonymous clients
+|===
+
+Clients receive only the project HTTPS URL and the public
+publishable/anonymous key:
+
+[source,sh]
+----
+export ENVELOP_SUPABASE_URL='https://YOUR_PROJECT.supabase.co'
+export ENVELOP_SUPABASE_KEY='YOUR_PUBLIC_KEY'
+----
+
+Service-role keys, secrets, UUIDs, and admin controls must never ship
+in clients or appear in documentation assets.
+
+[#protocol-documents]
+=== Protocol documents
+
+* `protocol/ENVELOP_PROTOCOL.md` — exact frame fields, types, and
+  limits for the binary v1 contract.
+* `protocol/BLE_PROTOCOL.md` — Nordic UART adapter: TX notifications,
+  ordered RX frame chunks of at most 20 bytes, transport-capacity flow
+  control.
+* `protocol/test-vectors/` — shared `frames.json` vectors consumed by
+  Swift XCTest and `python3 protocol/test-vectors/verify_c.py`.
+

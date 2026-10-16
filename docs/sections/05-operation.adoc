@@ -1,0 +1,67 @@
+[#operation]
+== Operation
+
+Bridge operation is a runbook for operators; backend deployment is a
+runbook for the owner. Public users operate neither.
+
+[#bridge-runbook]
+=== Bridge runbook
+
+One nearby operator-controlled bridge at a time. A BLE connection
+without a valid lease must not forward cloud traffic, and a lease must
+not be claimed before Tomato identity verification.
+
+Connect:
+
+1. Confirm the bridge account has a Tomato grant (owner bootstrap via
+   `envelop_private.bootstrap_owner(uuid)`).
+2. Start the native app near Tomato and connect the Nordic UART GATT
+   service; subscribe to notifications and send binary `HELLO`.
+3. Require the exact `ENVELOP/1` Tomato identity response. Reject a
+   Bluetooth name, malformed response, old line protocol, or timeout.
+4. Create a fresh bridge-instance UUID, claim the backend lease, and
+   renew it while connected.
+5. Begin with `CONTACT_RESET`, then synchronize routes, queued
+   messages, and jobs.
+
+Operate normally: forward queued messages with stable session delivery
+tokens, acknowledge queue items only after Tomato `MESSAGE_ACK`, call
+`send_as_device` with a stable nonce before acknowledging Tomato, and
+complete compute jobs only from the matching `COMPUTE_RESULT`.
+
+On disconnect or lease loss, stop cloud forwarding and clear partial
+frames, routes, tokens, pending BLE writes, announced contacts, and
+compute waiters. A reconnect creates a new bridge instance starting
+with `CONTACT_RESET`. Never force-takeover an unexpired lease; never
+replay an ambiguous job through Virtual Tomato.
+
+[#recovery-checklist]
+=== Recovery checklist
+
+* *Peer fails verification* — stop; confirm matching protocol and
+  firmware.
+* *Bridge account not provisioned* — provision the operator in the
+  dashboard; do not widen anonymous grants.
+* *Device already leased* — find the existing operator or wait for
+  expiry.
+* *Lease lost* — stop forwarding, clear session state, reconnect.
+* *Internet loss* — retain backend and device truth; do not acknowledge
+  work that was not durably accepted.
+
+[#backend-deployment]
+=== Backend deployment
+
+WARNING: `backend/migrations/001_envelop.sql` is the sole current
+schema and it is a destructive reset, not an incremental migration. It
+drops and recreates the Envelop schemas and erases all application
+state, including ownership. Never apply it as a routine production
+update.
+
+Stage first: use a disposable Supabase project, enable anonymous
+sign-ins, back up everything that must survive, rehearse restore into
+a separate disposable project, run the schema, bootstrap the owner
+from the dashboard, and complete physical acceptance before describing
+hardware as available. If the owner's anonymous-auth identity is lost,
+the supported recovery is a clean reset plus dashboard-only bootstrap;
+no public API or service-role key may bypass it.
+

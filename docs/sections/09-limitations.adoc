@@ -1,0 +1,45 @@
+[#limitations]
+== Known limitations
+
+Envelop is experimental. Source implementation plus local tests do
+not prove that the production backend schema, a nearby bridge, and
+the programmed FPGA run matching revisions.
+
+[#status-boundary]
+=== Status boundary
+
+[cols="1,3",options="header"]
+|===
+| Area | Canonical status
+| Web chat | Implemented in source; deployed revision must be checked separately
+| Virtual fallback | Implemented and unit-tested; fallback after a hardware attempt needs a separate action and a confirmed terminal non-result
+| Backend | One destructive schema plus local contract tests; hosted state not established
+| macOS | Source-supported operator and test client, package 0.2.0
+| Android | Private source-supported bridge app, package 0.2.0; no public artifact
+| Device protocol | Binary v1 with shared vectors; conformance is not a live radio session
+| Tomato OS endpoint | Implemented in assembly and simulation; programmed hardware needs live evidence
+| Physical messaging and compute | Implemented end to end in source; availability needs a live acceptance check
+|===
+
+[#open-unknowns]
+=== Open unknowns
+
+Which website and backend revisions are deployed; whether a bridge
+and programmed FPGA are online with matching revisions; whether the
+latest Android source completed physical-device acceptance; whether
+backup and owner-recovery rehearsals passed against a disposable
+project. Public copy must not convert these into live or available
+claims without fresh evidence.
+
+[#hard-boundaries]
+=== Hard boundaries
+
+* Not documented as end-to-end encrypted; backend content and
+  operator-visible bridge traffic are readable application data.
+* Exactly-once display is not claimed; delivery is at least once.
+* `MESSAGE_ACK` is acceptance, never a read receipt.
+* No device-driven history synchronization yet (`OPEN_CHAT` and
+  `CHAT_HISTORY` are unimplemented in bridge handlers).
+* No repository-wide open-source licence; describe Envelop as a
+  private repository with a public web surface, not as open source.
+

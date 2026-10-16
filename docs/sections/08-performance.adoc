@@ -1,0 +1,22 @@
+[#performance]
+== Performance and limits
+
+No latency or throughput measurements are claimed in current sources;
+the numbers below are design bounds, not benchmarks.
+
+[cols="1,2,2",options="header"]
+|===
+| Bound | Value | Notes
+| Device text | 1–256 printable ASCII bytes | Longer text is `TBD (unmeasured)`
+| Wire payload | At most 512 bytes | Frame at most 522 bytes with header and CRC
+| BLE chunk | At most 20 bytes per RX write | Nordic UART transport capacity
+| Route table | At most 8 contacts | Session-local; cleared on `CONTACT_RESET`
+| Bridge lease | 30 seconds, renewed while healthy | Fencing mechanism, not a health proof
+| End-to-end latency | `TBD (unmeasured)` | No measured send-to-ACK figures in source
+| Sustained throughput | `TBD (unmeasured)` | No measured jobs-per-minute figures in source
+|===
+
+Timeout, lease loss, disconnect, or an ambiguous claimed job is an
+unknown hardware outcome. It must stay visible as unknown rather than
+being converted into a virtual result or a performance claim.
+

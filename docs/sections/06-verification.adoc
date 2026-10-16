@@ -1,0 +1,49 @@
+[#verification]
+== Verification
+
+Four layers establish different facts: shared vectors for codec
+agreement, local tests for schema and source contracts, guardrails for
+documentation boundaries, and live acceptance for deployed reality.
+
+[#test-vectors]
+=== Shared vectors
+
+`protocol/test-vectors/frames.json` covers core framing and both
+compute frame types. Swift XCTest and
+`python3 protocol/test-vectors/verify_c.py` consume them. Vectors
+prove codec agreement, not a live radio session or a complete
+application flow.
+
+[#contract-tests]
+=== Contract tests
+
+Run local backend contract tests from the repository root:
+
+[source,sh]
+----
+node backend/tests.mjs
+----
+
+These tests do not contact or establish the revision of a hosted
+project. Website behavior is covered by the chat test suites, e.g.
+`node --test website/chat/*.test.cjs`. Live smoke tests stay off by
+default because they create accounts and data; run them only when
+explicitly authorized.
+
+[#documentation-guardrails]
+=== Documentation guardrails
+
+`python3 tools/check_docs.py` enforces the project's evidence
+boundary in CI: public copy must not claim live availability,
+hardware demonstration, or deployed revisions without fresh
+evidence, and private packages, keys, and identifiers must not leak
+into public artifacts.
+
+[#acceptance-evidence]
+=== Acceptance evidence
+
+A live acceptance record identifies the backend schema revision,
+bridge source and package version, Tomato firmware revision, physical
+device, date, and the exact message and compute sequence exercised.
+Local codec tests are useful but are not physical acceptance.
+
