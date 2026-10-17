@@ -21,7 +21,7 @@ export const LINKS = freezeTree({
   tomatoVerification: 'https://tomato.tmarhguy.com/verification.html',
   tomatoVirtual: 'https://tomato.tmarhguy.com/virtual.html',
   tomatoSource: 'https://github.com/tmarhguy/tomato',
-  envelop: 'https://tmarhguy.github.io/envelop/',
+  envelop: 'https://envelop.tmarhguy.com/',
   envelopStatus: '../status.html',
   envelopPrivacy: '../privacy.html',
   envelopSource: './knowledge.mjs',

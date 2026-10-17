@@ -29,7 +29,7 @@ Envelop is a web chat whose other end is a real 32-bit computer, Tomato. A perso
 [#quick-start]
 === Quick start
 
-Open the https://tmarhguy.github.io/envelop/chat/[web chat] and send a
+Open the https://envelop.tmarhguy.com/chat/[web chat] and send a
 message to Tomato. Messages wait safely in the backend queue when the
 physical bridge is offline. To play with the computer itself, visit
 https://tomato.tmarhguy.com/[Tomato OS].

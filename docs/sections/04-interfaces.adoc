@@ -8,7 +8,7 @@ and the protocol documents that pin the wire format.
 === Web chat
 
 The browser is the general public client at
-https://tmarhguy.github.io/envelop/chat/[web chat]. It queues messages
+https://envelop.tmarhguy.com/chat/[web chat]. It queues messages
 for physical Tomato, runs explicitly labeled Virtual Tomato
 execution, and never requires a bridge on the user's side. Which
 revision is deployed must be checked separately from repository

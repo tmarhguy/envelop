@@ -83,7 +83,7 @@ test('all fourteen Tomato OS entries have deterministic cards', () => {
 });
 
 test('every curated action is safe and reaches a tested route', () => {
-  const allowedHosts = new Set(['tmarhguy.com', 'tomato.tmarhguy.com', 'github.com', 'en.wikipedia.org']);
+  const allowedHosts = new Set(['tmarhguy.com', 'tomato.tmarhguy.com', 'envelop.tmarhguy.com', 'github.com', 'en.wikipedia.org']);
   for (const [id, card] of Object.entries(CARDS)) {
     for (const action of card.actions) {
       assert.ok(['ask', 'compute', 'link'].includes(action.type), `${id}: ${action.type}`);
@@ -93,9 +93,9 @@ test('every curated action is safe and reaches a tested route', () => {
       } else if (action.type === 'compute') {
         assert.equal(isCalculationBearing(action.value), true, `${id}: ${action.value}`);
       } else {
-        const url = new URL(action.href, 'https://tmarhguy.github.io/envelop/chat/');
+        const url = new URL(action.href, 'https://envelop.tmarhguy.com/chat/');
         assert.equal(url.protocol, 'https:', id);
-        assert.ok(url.origin === 'https://tmarhguy.github.io' || allowedHosts.has(url.hostname), `${id}: ${url}`);
+        assert.ok(url.origin === 'https://envelop.tmarhguy.com' || allowedHosts.has(url.hostname), `${id}: ${url}`);
       }
     }
   }

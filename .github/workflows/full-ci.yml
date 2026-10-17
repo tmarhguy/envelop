@@ -34,14 +34,7 @@ jobs:
       - name: Check documentation and public artifact
         run: |
           python3 tools/check_docs.py
-          mkdir .public-site
-          rsync -a \
-            --exclude 'downloads/' \
-            --exclude '*.test.js' --exclude '*.test.mjs' --exclude '*.test.cjs' \
-            --exclude '*.apk' --exclude '*.aab' --exclude '*.zip' \
-            --exclude '*.dmg' --exclude '*.ipa' --exclude '*.exe' --exclude '*.msi' \
-            --exclude '.env*' --exclude '*.key' --exclude '*.pem' --exclude '*.pfx' \
-            website/ .public-site/
+          python3 tools/stage_public_site.py .public-site
           python3 tools/check_docs.py --public-root .public-site
       - name: Run backend PGlite tests
         run: node backend/tests.mjs

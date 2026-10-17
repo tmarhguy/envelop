@@ -1,3 +1,5 @@
+# Deploy the technical manual to GitHub Pages at tmarhguy.github.io/envelop.
+# Do not attach a custom domain: envelop.tmarhguy.com is the browser app (Vercel).
 name: Docs
 
 on:
@@ -46,7 +48,7 @@ jobs:
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - name: Build and validate docs
         env:
-          DOCS_SITE_URL: ${{ steps.pages.outputs.base_url }}
+          DOCS_SITE_URL: https://tmarhguy.github.io/envelop
         run: make docs-check
       - name: Check JavaScript syntax
         run: |

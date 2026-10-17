@@ -1,0 +1,8 @@
+{
+  "framework": null,
+  "installCommand": null,
+  "buildCommand": "python3 tools/stage_public_site.py .public-site",
+  "outputDirectory": ".public-site",
+  "cleanUrls": false,
+  "trailingSlash": true
+}

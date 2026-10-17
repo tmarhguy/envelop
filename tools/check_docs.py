@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "website"
-CANONICAL_PREFIX = "https://tmarhguy.github.io/envelop/"
+CANONICAL_PREFIX = "https://envelop.tmarhguy.com/"
 SKIP_DIRS = {".git", ".gradle", ".build", ".swiftpm", "build", "node_modules", "downloads"}
 IMAGE_SUFFIXES = {".avif", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"}
 MAX_IMAGE_BYTES = 4 * 1024 * 1024

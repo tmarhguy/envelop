@@ -3,11 +3,11 @@
   "label": "Documentation",
   "title": "A chat that reaches a computer",
   "description": "A web chat whose other end is Tomato, a 32-bit computer. Messages and small jobs travel over Bluetooth, and the computer writes back.",
-  "url": "",
+  "url": "https://tmarhguy.github.io/envelop",
   "image": "",
   "about": "#about",
   "repository": "https://github.com/tmarhguy/envelop",
-  "website": "https://tmarhguy.github.io/envelop/chat/",
+  "website": "https://envelop.tmarhguy.com/chat/",
   "source": "https://github.com/tmarhguy/envelop/blob/main/docs/index.adoc",
   "groups": {
     "0": "Documentation",

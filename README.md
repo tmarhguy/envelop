@@ -34,8 +34,10 @@ Envelop app running inside Tomato OS.
 
 ## Start here
 
-- **[Message Tomato via Envelop](https://tmarhguy.github.io/envelop/chat/)** —
+- **[Message Tomato via Envelop](https://envelop.tmarhguy.com/chat/)** —
   open the web chat; messages wait safely when the physical bridge is offline.
+- **[Technical reference](https://tmarhguy.github.io/envelop/)** —
+  architecture, protocol, operations, and evidence boundaries.
 - **[Explore Tomato](https://tomato.tmarhguy.com/)** —
   play with Tomato OS, inspect the computer, and explore its 524,288 ALU
   configurations.
